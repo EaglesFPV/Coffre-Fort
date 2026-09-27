@@ -37,10 +37,12 @@ sécurité repose sur des algorithmes standards et éprouvés : **Argon2id** et 
 |---|---|
 | **Identifiants** | Nom, identifiant, mot de passe, site, catégorie et notes. Copie en un clic, ouverture du site. |
 | **Notes sécurisées** | Codes Wi-Fi, codes de secours, licences : tout ce qui doit rester secret. |
+| **Identités** | Vos e-mails, pseudos, téléphones et noms, copiables en un clic. L'identité par défaut préremplit les nouveaux identifiants, les autres sont suggérées. |
 | **Santé des mots de passe** | Score sur 100 et liste des mots de passe réutilisés, faibles ou anciens, analysés localement. |
 | **Générateur** | De 8 à 64 caractères, choix des catégories, caractères ambigus évitables, entropie affichée. |
 | **Organisation** | Catégories, favoris épinglés, recherche instantanée, regroupement alphabétique. |
-| **Confort** | Thème clair et sombre automatique, raccourcis clavier, mises à jour automatiques. |
+| **Intégration Windows** | Zone de notification, lancement au démarrage, réduction au lieu de fermeture, raccourci global. |
+| **Confort** | Thème clair et sombre automatique, raccourcis clavier, mises à jour automatiques et silencieuses. |
 
 <table>
   <tr>
@@ -48,8 +50,12 @@ sécurité repose sur des algorithmes standards et éprouvés : **Argon2id** et 
     <td><img src="docs/screenshots/generateur.png" alt="Générateur de mots de passe"></td>
   </tr>
   <tr>
+    <td><img src="docs/screenshots/identites.png" alt="Identités"></td>
     <td><img src="docs/screenshots/notes.png" alt="Notes sécurisées"></td>
+  </tr>
+  <tr>
     <td><img src="docs/screenshots/sombre.png" alt="Thème sombre"></td>
+    <td><img src="docs/screenshots/verrouillage.png" alt="Écran de déverrouillage"></td>
   </tr>
 </table>
 
@@ -72,8 +78,9 @@ sécurité repose sur des algorithmes standards et éprouvés : **Argon2id** et 
 ## Mises à jour
 
 Coffre-Fort vérifie les nouvelles versions au démarrage puis toutes les six heures. La mise à jour est
-téléchargée en arrière-plan puis installée à la fermeture de l'application, ou immédiatement avec
-**Redémarrer maintenant**. Le fichier téléchargé est contrôlé par son empreinte SHA-512 avant installation.
+téléchargée en arrière-plan puis installée en silence à la fermeture de l'application, ou immédiatement
+avec **Redémarrer maintenant**, sans passer par l'assistant d'installation. Le fichier téléchargé est
+contrôlé par son empreinte SHA-512 avant installation.
 La vérification automatique peut être désactivée dans **Paramètres › À propos**.
 
 ## Sécurité
@@ -81,13 +88,14 @@ La vérification automatique peut être désactivée dans **Paramètres › À p
 | Protection | Détail |
 |---|---|
 | Chiffrement | AES-256-GCM : chaque enregistrement est chiffré et authentifié, toute altération du fichier est détectée. |
-| Mot de passe maître | Dérivé par Argon2id (256 Mio, 3 passes) : environ une seconde et 256 Mio de mémoire par essai. |
-| Stockage | Écriture atomique, copie de secours chiffrée, taille arrondie pour masquer le nombre d'éléments. |
+| Mot de passe maître | Dérivé par Argon2id, trois niveaux au choix : Standard (64 Mio), Renforcé (256 Mio, par défaut) ou Maximal (512 Mio par essai). |
+| Confirmation | Option pour exiger le mot de passe maître avant d'afficher, copier ou modifier un secret, redemandé après 2 minutes. |
+| Stockage | Écriture atomique, copie de secours chiffrée, taille arrondie pour masquer le nombre d'éléments. Les réglages de sécurité sont eux aussi chiffrés. |
 | Isolation | Interface en bac à sable, sans Node.js ni accès réseau ; seule la recherche de mises à jour contacte GitHub. |
 | Secrets à la demande | Un mot de passe n'est transmis à l'interface que pour être affiché ; la copie se fait sans lui. |
-| Presse-papiers | Exclu de l'historique Windows et de la synchronisation cloud, effacé après 20 secondes. |
+| Presse-papiers | Exclu de l'historique Windows et de la synchronisation cloud, effacé après 10 s à 2 min selon votre réglage. |
 | Écran | Fenêtre invisible dans les captures et partages d'écran. |
-| Verrouillage | Après inactivité (1 à 60 min), au verrouillage de Windows et à la mise en veille. |
+| Verrouillage | Après inactivité (1 à 60 min), au verrouillage de Windows, à la mise en veille et, en option, à la réduction de la fenêtre. |
 | Exécutable | Fuses Electron verrouillées, intégrité de l'archive vérifiée au lancement. |
 
 Modèle de menace, détails cryptographiques et signalement de vulnérabilités : **[SECURITY.md](SECURITY.md)**.
@@ -107,6 +115,9 @@ Le coffre se trouve dans `%LOCALAPPDATA%\CoffreFort\coffre.cfv`.
 | `Ctrl` + `L` | Verrouiller le coffre |
 | `Ctrl` + `S` | Enregistrer l'élément en cours de modification |
 | `Échap` | Fermer le panneau ou la fenêtre |
+
+Un raccourci global, utilisable depuis n'importe quelle application, peut être choisi dans
+**Paramètres › Système** pour ouvrir Coffre-Fort.
 
 ## Développement
 
@@ -141,10 +152,11 @@ src/
 │   ├── security.js        Protocole app://, CSP, sessions, blocage réseau
 │   ├── window.js          Fenêtre principale
 │   ├── ipc.js             API exposée à l'interface, avec validation des entrées
-│   ├── vault-session.js   Déverrouillage, verrouillage automatique
+│   ├── vault-session.js   Déverrouillage, confirmation, verrouillage automatique
 │   ├── secret-clipboard.js
+│   ├── system.js          Zone de notification, démarrage, raccourci global
 │   ├── updater.js         Mises à jour automatiques
-│   ├── preferences.js
+│   ├── preferences.js     Préférences système (non secrètes)
 │   └── platform/windows-clipboard.js
 ├── preload/index.js       Pont minimal entre l'interface et le processus principal
 └── renderer/              Interface (HTML, CSS et modules JavaScript, sans framework)

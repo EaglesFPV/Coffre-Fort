@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const { Vault, VaultError, WrongPasswordError, PAD_BLOCK } = require('../src/core/vault');
+const { Vault, VaultError, WrongPasswordError, PAD_BLOCK, PROTECTION_LEVELS } = require('../src/core/vault');
 
 const FAST_KDF = { t: 1, m: 8 * 1024, p: 1 };
 const PASSWORD = 'cheval agrafe batterie correcte';
@@ -111,11 +111,47 @@ test('refuse tout accès une fois verrouillé', async () => {
   assert.throws(() => vault.add({ title: 'x' }), VaultError);
 });
 
-test('valide les réglages', async () => {
-  const vault = await Vault.create(temporaryVaultPath(), PASSWORD, FAST_KDF);
-  vault.updateSettings({ autoLockMinutes: 15 });
-  assert.equal(vault.settings.autoLockMinutes, 15);
+test('valide et chiffre les réglages', async () => {
+  const file = temporaryVaultPath();
+  const vault = await Vault.create(file, PASSWORD, FAST_KDF);
+  assert.deepEqual(vault.settings, { autoLockMinutes: 5, clipboardSeconds: 20, lockOnMinimize: false, requireMasterPassword: false });
+  vault.updateSettings({ autoLockMinutes: 15, clipboardSeconds: 60, lockOnMinimize: true, requireMasterPassword: true });
+  assert.deepEqual((await Vault.open(file, PASSWORD)).settings,
+    { autoLockMinutes: 15, clipboardSeconds: 60, lockOnMinimize: true, requireMasterPassword: true });
   assert.throws(() => vault.updateSettings({ autoLockMinutes: 7 }), VaultError);
+  assert.throws(() => vault.updateSettings({ requireMasterPassword: 'oui' }), VaultError);
+  assert.throws(() => vault.updateSettings({ inconnu: true }), VaultError);
+});
+
+test('gère les identités avec une seule identité par défaut', async () => {
+  const file = temporaryVaultPath();
+  const vault = await Vault.create(file, PASSWORD, FAST_KDF);
+  const personal = vault.saveIdentity(null, { kind: 'email', value: ' moi@exemple.fr ', label: 'Personnel', isDefault: true });
+  const gaming = vault.saveIdentity(null, { kind: 'username', value: 'LeJoueur', isDefault: true });
+  const reopened = await Vault.open(file, PASSWORD);
+  assert.equal(reopened.identities.length, 2);
+  assert.equal(reopened.identities.find((identity) => identity.id === personal).value, 'moi@exemple.fr');
+  assert.deepEqual(reopened.identities.filter((identity) => identity.isDefault).map((identity) => identity.id), [gaming]);
+  assert.equal(fs.readFileSync(file).includes(Buffer.from('LeJoueur')), false);
+
+  vault.saveIdentity(gaming, { kind: 'username', value: 'LeJoueur42', isDefault: false });
+  assert.equal(vault.identities.find((identity) => identity.id === gaming).value, 'LeJoueur42');
+  vault.removeIdentity(personal);
+  assert.equal(vault.identities.length, 1);
+  assert.throws(() => vault.saveIdentity(null, { kind: 'email', value: '   ' }), VaultError);
+  assert.throws(() => vault.saveIdentity(null, { kind: 'fax', value: 'x' }), VaultError);
+});
+
+test('change le niveau de protection sans perdre les données', async () => {
+  const file = temporaryVaultPath();
+  const vault = await Vault.create(file, PASSWORD, FAST_KDF);
+  vault.add({ title: 'a', password: 'b' });
+  assert.equal(vault.protectionLevel, 'custom');
+  await vault.changePassword(PASSWORD, PROTECTION_LEVELS.standard);
+  assert.equal(vault.protectionLevel, 'standard');
+  const reopened = await Vault.open(file, PASSWORD);
+  assert.equal(reopened.protectionLevel, 'standard');
+  assert.equal(reopened.entries[0].password, 'b');
 });
 
 test('refuse des paramètres Argon2 déraisonnables', async () => {

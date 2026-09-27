@@ -6,10 +6,17 @@ import { CATEGORIES, state } from '../state.js';
 import { bindStrength, colorize, field, passwordInput, strengthMeter, tile } from '../ui/components.js';
 import { attempt, toast } from '../ui/feedback.js';
 import { confirmModal } from '../ui/modal.js';
+import { withMasterPassword } from '../ui/master-password.js';
 import { copyField, toggleFavorite } from './items.js';
+import { defaultIdentityValue, identitySuggestions } from './identities.js';
 import { isListView, loadData, reload, renderContent, renderSidebar } from './shell.js';
 
 const MASK = '••••••••••••';
+
+async function revealSecret(id, field) {
+  const result = await attempt(() => withMasterPassword(() => api.items.reveal(id, field)));
+  return result ? result.value : null;
+}
 
 export function closePanel(render = true) {
   state.panel = null;
@@ -41,6 +48,10 @@ export async function renderPanel() {
   const item = panel.isNew ? null : state.items.find((candidate) => candidate.id === panel.id);
   const element = panel.mode === 'edit' ? await editView(item, panel.type) : await detailView(item);
   if (state.panel !== panel) return;
+  if (!element) {
+    if (item) await openItem(item.id);
+    return;
+  }
   state.panelElement = element;
   renderContent();
   if (panel.mode === 'edit') element.querySelector('input')?.focus();
@@ -51,8 +62,8 @@ function passwordField(item) {
   let revealed = false;
   const toggle = iconButton('eye', 'Afficher le mot de passe', async () => {
     if (!revealed) {
-      const password = await attempt(() => api.items.reveal(item.id, 'password'));
-      if (password === undefined) return;
+      const password = await revealSecret(item.id, 'password');
+      if (password === null) return;
       value.className = 'field-value mono selectable';
       value.replaceChildren(colorize(password));
     } else {
@@ -82,9 +93,32 @@ function healthFlags(health) {
   return flags;
 }
 
+async function notesField(item) {
+  const label = item.type === 'login' ? 'Notes' : 'Contenu';
+  const copy = iconButton('copy', 'Copier', () => copyField(item, 'notes'), { disabled: !item.hasNotes });
+  if (!item.hasNotes) {
+    return item.type === 'login' ? null : field(label, h('div', { class: 'field-value placeholder' }, 'Vide'), copy);
+  }
+  const result = await api.items.reveal(item.id, 'notes').catch(() => null);
+  const value = h('div', { class: 'field-value multiline selectable' });
+  if (result && !result.requiresMasterPassword) {
+    value.textContent = result.value;
+    return field(label, value, copy);
+  }
+  value.className = 'field-value placeholder';
+  value.textContent = 'Contenu protégé par le mot de passe maître';
+  const reveal = iconButton('eye', 'Afficher le contenu', async () => {
+    const text = await revealSecret(item.id, 'notes');
+    if (text === null) return;
+    value.className = 'field-value multiline selectable';
+    value.textContent = text;
+    reveal.remove();
+  });
+  return field(label, value, reveal, copy);
+}
+
 async function detailView(item) {
   const isLogin = item.type === 'login';
-  const notes = item.hasNotes ? await api.items.reveal(item.id, 'notes').catch(() => '') : '';
   const domain = domainOf(item.url);
 
   const head = h('div', { class: 'panel-head' },
@@ -110,11 +144,8 @@ async function detailView(item) {
         iconButton('external', 'Ouvrir le site', () => attempt(() => api.items.openUrl(item.id)))));
     }
   }
-  if (notes || !isLogin) {
-    fields.append(field(isLogin ? 'Notes' : 'Contenu',
-      h('div', { class: `field-value multiline selectable${notes ? '' : ' placeholder'}` }, notes || 'Vide'),
-      iconButton('copy', 'Copier', () => copyField(item, 'notes'), { disabled: !notes })));
-  }
+  const notes = await notesField(item);
+  if (notes) fields.append(notes);
   if (item.category) fields.append(field('Catégorie', h('div', { class: 'field-value' }, item.category)));
 
   return h('aside', { class: 'panel', 'aria-label': 'Détails' }, head, hero, fields,
@@ -132,15 +163,21 @@ function categoryInput(value) {
 
 async function editView(item, type) {
   const isLogin = type === 'login';
-  const [password, notes] = item
-    ? await Promise.all([
-      isLogin && item.hasPassword ? api.items.reveal(item.id, 'password') : '',
-      item.hasNotes ? api.items.reveal(item.id, 'notes') : '',
-    ])
-    : ['', ''];
+  const password = item && isLogin && item.hasPassword ? await revealSecret(item.id, 'password') : '';
+  if (password === null) return null;
+  const notes = item?.hasNotes ? await revealSecret(item.id, 'notes') : '';
+  if (notes === null) return null;
 
   const title = h('input', { class: 'input', value: item?.title ?? '', placeholder: isLogin ? 'Ex. : Messagerie, Banque…' : 'Ex. : Code Wi-Fi', maxlength: '500' });
-  const username = h('input', { class: 'input', value: item?.username ?? '', placeholder: "Adresse e-mail ou nom d'utilisateur", spellcheck: 'false' });
+  const username = h('input', {
+    class: 'input',
+    value: item ? item.username : defaultIdentityValue(),
+    placeholder: "Adresse e-mail ou nom d'utilisateur",
+    list: 'identity-options',
+    spellcheck: 'false',
+  });
+  const usernameOptions = h('datalist', { id: 'identity-options' },
+    identitySuggestions().map((identity) => h('option', { value: identity.value }, identity.label)));
   const secret = h('input', { class: 'input mono', type: 'password', value: password, spellcheck: 'false', autocomplete: 'off' });
   const url = h('input', { class: 'input', value: item?.url ?? '', placeholder: 'exemple.fr', spellcheck: 'false' });
   const [category, categoryOptions] = categoryInput(item?.category ?? '');
@@ -225,7 +262,7 @@ async function editView(item, type) {
   },
   labelled('Nom', title),
   isLogin ? [
-    labelled('Identifiant', username),
+    labelled('Identifiant', username, usernameOptions),
     labelled('Mot de passe', passwordInput(secret, generate), meter),
     labelled('Site web', url),
   ] : null,

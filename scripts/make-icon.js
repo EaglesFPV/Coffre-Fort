@@ -6,7 +6,10 @@ const { app, BrowserWindow } = require('electron');
 
 const SIZE = 512;
 const BUILD = path.join(__dirname, '..', 'build');
-const OUTPUT = path.join(BUILD, 'icon.png');
+const OUTPUTS = [
+  { file: path.join(BUILD, 'icon.png'), size: 512 },
+  { file: path.join(__dirname, '..', 'src', 'main', 'assets', 'icon.png'), size: 256 },
+];
 
 const logo = fs.readFileSync(path.join(BUILD, 'logo-dark.svg'), 'utf8')
   .replace('width="512" height="512"', 'x="76" y="68" width="360" height="360"');
@@ -32,8 +35,11 @@ app.whenReady().then(async () => {
   const html = `<html><body style="margin:0;background:transparent">${SVG}</body></html>`;
   await window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
   await new Promise((resolve) => setTimeout(resolve, 300));
-  const image = (await window.webContents.capturePage()).resize({ width: SIZE, height: SIZE, quality: 'best' });
-  fs.writeFileSync(OUTPUT, image.toPNG());
-  console.log(`${path.relative(process.cwd(), OUTPUT)} ${SIZE}x${SIZE}`);
+  const capture = await window.webContents.capturePage();
+  for (const { file, size } of OUTPUTS) {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, capture.resize({ width: size, height: size, quality: 'best' }).toPNG());
+    console.log(`${path.relative(process.cwd(), file)} ${size}x${size}`);
+  }
   app.quit();
 });

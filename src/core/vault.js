@@ -13,13 +13,24 @@ const KEY_LEN = 32;
 const MAX_HEADER_LEN = 64 * 1024;
 const PAD_BLOCK = 4096;
 
-const DEFAULT_KDF = Object.freeze({ t: 3, m: 256 * 1024, p: 4 });
+const PROTECTION_LEVELS = Object.freeze({
+  standard: Object.freeze({ t: 3, m: 64 * 1024, p: 4 }),
+  reinforced: Object.freeze({ t: 3, m: 256 * 1024, p: 4 }),
+  maximal: Object.freeze({ t: 4, m: 512 * 1024, p: 4 }),
+});
+const DEFAULT_KDF = PROTECTION_LEVELS.reinforced;
 const KDF_LIMITS = Object.freeze({ t: [1, 50], m: [8 * 1024, 4 * 1024 * 1024], p: [1, 64] });
 
 const TEXT_FIELDS = Object.freeze(['title', 'username', 'password', 'url', 'notes', 'category']);
 const TYPES = Object.freeze(['login', 'note']);
-const AUTO_LOCK_CHOICES = Object.freeze([1, 5, 15, 30, 60]);
-const DEFAULT_SETTINGS = Object.freeze({ autoLockMinutes: 5 });
+const IDENTITY_KINDS = Object.freeze(['email', 'username', 'phone', 'name', 'other']);
+
+const SETTING_RULES = Object.freeze({
+  autoLockMinutes: { default: 5, choices: [1, 5, 15, 30, 60] },
+  clipboardSeconds: { default: 20, choices: [10, 20, 30, 60, 120] },
+  lockOnMinimize: { default: false, choices: [true, false] },
+  requireMasterPassword: { default: false, choices: [true, false] },
+});
 
 class VaultError extends Error {}
 class WrongPasswordError extends VaultError {}
@@ -162,14 +173,45 @@ function normalizeData(data) {
   if (data.entries.some((entry) => !entry || typeof entry !== 'object' || typeof entry.id !== 'string')) {
     throw new VaultError('Contenu du coffre invalide.');
   }
-  const settings = data.settings && typeof data.settings === 'object' ? data.settings : {};
   return {
-    version: 2,
+    version: 3,
     created: data.created ?? now(),
     modified: data.modified ?? now(),
-    settings: { ...DEFAULT_SETTINGS, ...settings },
+    settings: normalizeSettings(data.settings),
     entries: data.entries.map(normalizeEntry),
+    identities: Array.isArray(data.identities) ? data.identities.filter(isValidIdentity).map(normalizeIdentity) : [],
   };
+}
+
+function normalizeSettings(raw) {
+  const source = raw && typeof raw === 'object' ? raw : {};
+  const settings = {};
+  for (const [name, rule] of Object.entries(SETTING_RULES)) {
+    settings[name] = rule.choices.includes(source[name]) ? source[name] : rule.default;
+  }
+  return settings;
+}
+
+function isValidIdentity(raw) {
+  return raw && typeof raw === 'object' && typeof raw.id === 'string' && typeof raw.value === 'string';
+}
+
+function normalizeIdentity(raw) {
+  return {
+    id: raw.id,
+    kind: IDENTITY_KINDS.includes(raw.kind) ? raw.kind : 'other',
+    label: typeof raw.label === 'string' ? raw.label : '',
+    value: raw.value,
+    isDefault: raw.isDefault === true,
+  };
+}
+
+function sanitizeIdentity(fields) {
+  const kind = IDENTITY_KINDS.includes(fields.kind) ? fields.kind : null;
+  if (!kind) throw new VaultError("Type d'identité inconnu.");
+  const value = String(fields.value ?? '').trim();
+  if (!value) throw new VaultError('Renseignez une valeur pour cette identité.');
+  return { kind, label: String(fields.label ?? '').trim(), value, isDefault: fields.isDefault === true };
 }
 
 function sanitizeFields(fields) {
@@ -257,6 +299,17 @@ class Vault {
     return { ...this.#data.settings };
   }
 
+  get identities() {
+    this.#assertUnlocked();
+    return structuredClone(this.#data.identities);
+  }
+
+  get protectionLevel() {
+    const match = Object.entries(PROTECTION_LEVELS)
+      .find(([, kdf]) => kdf.t === this.#kdf.t && kdf.m === this.#kdf.m && kdf.p === this.#kdf.p);
+    return match ? match[0] : 'custom';
+  }
+
   lock() {
     if (this.#key) this.#key.fill(0);
     this.#key = null;
@@ -324,13 +377,38 @@ class Vault {
     });
   }
 
-  updateSettings(settings) {
+  updateSettings(changes) {
     this.#commit((data) => {
-      if (settings.autoLockMinutes !== undefined) {
-        const minutes = Number(settings.autoLockMinutes);
-        if (!AUTO_LOCK_CHOICES.includes(minutes)) throw new VaultError('Délai de verrouillage invalide.');
-        data.settings.autoLockMinutes = minutes;
+      for (const [name, value] of Object.entries(changes)) {
+        const rule = SETTING_RULES[name];
+        if (!rule || !rule.choices.includes(value)) throw new VaultError('Réglage invalide.');
+        data.settings[name] = value;
       }
+    });
+  }
+
+  saveIdentity(id, fields) {
+    const clean = sanitizeIdentity(fields);
+    let savedId = id;
+    this.#commit((data) => {
+      if (clean.isDefault) data.identities.forEach((identity) => { identity.isDefault = false; });
+      if (id) {
+        const identity = data.identities.find((candidate) => candidate.id === id);
+        if (!identity) throw new VaultError('Identité introuvable.');
+        Object.assign(identity, clean);
+      } else {
+        savedId = crypto.randomUUID();
+        data.identities.push({ id: savedId, ...clean });
+      }
+    });
+    return savedId;
+  }
+
+  removeIdentity(id) {
+    this.#commit((data) => {
+      const remaining = data.identities.filter((identity) => identity.id !== id);
+      if (remaining.length === data.identities.length) throw new VaultError('Identité introuvable.');
+      data.identities = remaining;
     });
   }
 
@@ -360,4 +438,4 @@ class Vault {
   }
 }
 
-module.exports = { Vault, VaultError, WrongPasswordError, DEFAULT_KDF, PAD_BLOCK, AUTO_LOCK_CHOICES, deriveKey };
+module.exports = { Vault, VaultError, WrongPasswordError, DEFAULT_KDF, PAD_BLOCK, PROTECTION_LEVELS, IDENTITY_KINDS, deriveKey };

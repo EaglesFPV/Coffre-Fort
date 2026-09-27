@@ -23,8 +23,10 @@ contextBridge.exposeInMainWorld('coffre', {
     unlock: (password) => invoke('vault:unlock', password),
     lock: () => invoke('vault:lock'),
     activity: () => invoke('vault:activity'),
+    confirmMasterPassword: (password) => invoke('vault:confirm-master', password),
     changeMasterPassword: (current, next) => invoke('vault:change-master', current, next),
-    updateSettings: (settings) => invoke('vault:settings', settings),
+    changeProtectionLevel: (password, level) => invoke('vault:protection', password, level),
+    updateSettings: (changes) => invoke('vault:settings', changes),
     backup: () => invoke('vault:backup'),
     openFolder: () => invoke('vault:open-folder'),
   },
@@ -36,6 +38,11 @@ contextBridge.exposeInMainWorld('coffre', {
     setFavorite: (id, value) => invoke('items:favorite', id, value),
     copy: (id, field) => invoke('items:copy', id, field),
     openUrl: (id) => invoke('items:open-url', id),
+  },
+  identities: {
+    save: (id, fields) => invoke('identities:save', id, fields),
+    remove: (id) => invoke('identities:remove', id),
+    copy: (id) => invoke('identities:copy', id),
   },
   passwords: {
     generate: (options) => invoke('passwords:generate', options),

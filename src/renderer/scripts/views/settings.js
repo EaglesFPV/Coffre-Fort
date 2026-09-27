@@ -5,23 +5,63 @@ import { state } from '../state.js';
 import { bindStrength, pageHead, passwordInput, setBusy, strengthMeter } from '../ui/components.js';
 import { attempt, toast } from '../ui/feedback.js';
 import { closeModal, openModal } from '../ui/modal.js';
+import { promptMasterPassword } from '../ui/master-password.js';
 import { describeUpdate } from '../ui/update-banner.js';
+import { renderContent } from './shell.js';
 
-const AUTO_LOCK_CHOICES = Object.freeze([1, 5, 15, 30, 60]);
-
-const PROTECTIONS = Object.freeze([
-  'Chiffrement AES-256-GCM : toute modification du fichier est détectée',
-  'Mot de passe maître renforcé par Argon2id (256 Mio de mémoire par essai)',
-  "Presse-papiers exclu de l'historique Windows et du cloud, effacé après 20 s",
-  "Fenêtre invisible dans les captures et partages d'écran",
-  'Verrouillage automatique, avec Windows et à la mise en veille',
-  "Interface isolée d'Internet ; seule la recherche de mises à jour contacte GitHub",
+const AUTO_LOCK_CHOICES = Object.freeze([[1, '1 minute'], [5, '5 minutes'], [15, '15 minutes'], [30, '30 minutes'], [60, '1 heure']]);
+const CLIPBOARD_CHOICES = Object.freeze([[10, '10 secondes'], [20, '20 secondes'], [30, '30 secondes'], [60, '1 minute'], [120, '2 minutes']]);
+const PROTECTION_CHOICES = Object.freeze([
+  ['standard', 'Standard', '64 Mio par essai, déverrouillage rapide (~0,5 s)'],
+  ['reinforced', 'Renforcé', '256 Mio par essai, recommandé (~1 à 2 s)'],
+  ['maximal', 'Maximal', '512 Mio par essai, pour les plus prudents (~3 à 5 s)'],
+]);
+const SHORTCUT_CHOICES = Object.freeze([
+  ['none', 'Aucun'],
+  ['ctrl-alt-k', 'Ctrl + Alt + K'],
+  ['ctrl-shift-k', 'Ctrl + Maj + K'],
+  ['ctrl-alt-v', 'Ctrl + Alt + V'],
+  ['ctrl-shift-space', 'Ctrl + Maj + Espace'],
 ]);
 
 function setting(title, description, control, descriptionClass) {
   return h('div', { class: 'setting' },
     h('div', { class: 'text' }, h('strong', null, title), h('span', { class: descriptionClass }, description)),
     control);
+}
+
+function select(label, choices, current, onChange) {
+  return h('select', { class: 'input', 'aria-label': label, onchange: (event) => onChange(event.target.value) },
+    choices.map(([value, text]) => {
+      const option = h('option', { value: String(value) }, text);
+      option.selected = String(value) === String(current);
+      return option;
+    }));
+}
+
+function toggle(label, checked, onChange, disabled = false) {
+  return h('input', {
+    type: 'checkbox', class: 'switch', 'aria-label': label, checked, disabled,
+    onchange: (event) => onChange(event.target.checked, event.target),
+  });
+}
+
+async function updateVaultSetting(changes, message) {
+  await attempt(async () => {
+    await api.vault.updateSettings(changes);
+    Object.assign(state.settings, changes);
+    toast(message);
+  });
+}
+
+async function updatePreferences(changes, message) {
+  try {
+    state.appInfo.preferences = await api.app.updatePreferences(changes);
+    toast(message);
+  } catch (error) {
+    toast(error.message, { iconName: 'alert', error: true });
+  }
+  renderContent();
 }
 
 function changeMasterPasswordModal() {
@@ -62,36 +102,83 @@ function changeMasterPasswordModal() {
   h('div', { class: 'actions' }, h('button', { class: 'btn', type: 'button', onclick: closeModal }, 'Annuler'), submit)));
 }
 
-function autoLockSelect() {
-  return h('select', {
-    class: 'input',
-    'aria-label': 'Délai de verrouillage',
-    onchange: (event) => attempt(async () => {
-      const minutes = Number(event.target.value);
-      await api.vault.updateSettings({ autoLockMinutes: minutes });
-      state.settings.autoLockMinutes = minutes;
-      toast('Délai de verrouillage enregistré');
-    }),
-  }, AUTO_LOCK_CHOICES.map((minutes) => {
-    const option = h('option', { value: String(minutes) }, minutes === 60 ? '1 heure' : `${minutes} minute${minutes > 1 ? 's' : ''}`);
-    option.selected = minutes === state.settings.autoLockMinutes;
-    return option;
-  }));
+async function changeProtection(level) {
+  const choice = PROTECTION_CHOICES.find(([value]) => value === level);
+  const confirmed = await promptMasterPassword({
+    title: `Protection « ${choice[1]} »`,
+    text: `${choice[2]}. Le coffre va être chiffré à nouveau : confirmez avec votre mot de passe maître.`,
+    confirm: (password) => api.vault.changeProtectionLevel(password, level),
+  });
+  if (confirmed) {
+    state.protectionLevel = level;
+    toast('Niveau de protection mis à jour');
+  }
+  renderContent();
 }
 
-function updateSection() {
+function securityCard() {
+  const settings = state.settings;
+  const currentProtection = PROTECTION_CHOICES.find(([value]) => value === state.protectionLevel);
+  return h('div', { class: 'card' },
+    h('h3', null, 'Sécurité'),
+    setting('Mot de passe maître', "Le seul mot de passe à retenir. Changez-le si vous pensez qu'il a pu être vu.",
+      h('button', { class: 'btn', type: 'button', onclick: changeMasterPasswordModal }, 'Changer…')),
+    setting('Niveau de protection', currentProtection ? currentProtection[2] : 'Paramètres personnalisés.',
+      select('Niveau de protection', PROTECTION_CHOICES.map(([value, label]) => [value, label]), state.protectionLevel, changeProtection)),
+    setting('Exiger le mot de passe maître', 'Avant d’afficher, copier ou modifier un mot de passe ou une note. Redemandé après 2 minutes.',
+      toggle('Exiger le mot de passe maître', settings.requireMasterPassword, (value) => updateVaultSetting({ requireMasterPassword: value },
+        value ? 'Mot de passe maître exigé pour les secrets' : 'Mot de passe maître non exigé'))),
+    setting('Verrouillage automatique', 'Après cette durée sans utilisation, ainsi qu’au verrouillage de Windows et en veille.',
+      select('Délai de verrouillage', AUTO_LOCK_CHOICES, settings.autoLockMinutes,
+        (value) => updateVaultSetting({ autoLockMinutes: Number(value) }, 'Délai de verrouillage enregistré'))),
+    setting('Verrouiller en réduisant la fenêtre', 'Le coffre se verrouille dès que la fenêtre est réduite ou cachée.',
+      toggle('Verrouiller en réduisant', settings.lockOnMinimize, (value) => updateVaultSetting({ lockOnMinimize: value },
+        value ? 'Verrouillage à la réduction activé' : 'Verrouillage à la réduction désactivé'))),
+    setting('Effacement du presse-papiers', 'Délai avant que les identifiants et mots de passe copiés soient effacés.',
+      select('Effacement du presse-papiers', CLIPBOARD_CHOICES, settings.clipboardSeconds,
+        (value) => updateVaultSetting({ clipboardSeconds: Number(value) }, 'Délai du presse-papiers enregistré'))));
+}
+
+function systemCard() {
+  const info = state.appInfo;
+  const preferences = info.preferences;
+  return h('div', { class: 'card' },
+    h('h3', null, 'Système'),
+    setting('Lancer au démarrage de Windows',
+      info.packaged ? 'Coffre-Fort démarre verrouillé, discrètement dans la zone de notification.' : 'Disponible dans la version installée.',
+      toggle('Lancer au démarrage', preferences.launchAtStartup, (value) => updatePreferences({ launchAtStartup: value },
+        value ? 'Lancement au démarrage activé' : 'Lancement au démarrage désactivé'), !info.packaged)),
+    setting('Icône dans la zone de notification', 'Accès rapide pour ouvrir ou verrouiller le coffre, à côté de l’horloge.',
+      toggle('Icône dans la zone de notification', preferences.showTray, (value) => updatePreferences({ showTray: value },
+        value ? 'Icône affichée' : 'Icône masquée'))),
+    setting('Réduire au lieu de fermer', 'La croix cache la fenêtre dans la zone de notification ; « Quitter » ferme vraiment.',
+      toggle('Réduire au lieu de fermer', preferences.closeToTray, (value) => updatePreferences({ closeToTray: value },
+        value ? 'La croix réduit maintenant la fenêtre' : 'La croix ferme maintenant l’application'), !preferences.showTray)),
+    setting('Raccourci global', 'Ouvre Coffre-Fort depuis n’importe quelle application.',
+      select('Raccourci global', SHORTCUT_CHOICES, preferences.globalShortcut,
+        (value) => updatePreferences({ globalShortcut: value }, value === 'none' ? 'Raccourci désactivé' : 'Raccourci enregistré'))));
+}
+
+function backupCard() {
+  return h('div', { class: 'card' },
+    h('h3', null, 'Sauvegarde'),
+    setting('Copie de sauvegarde', "Copie chiffrée, à garder sur une clé USB ou un disque externe. Elle s'ouvre avec le mot de passe maître actuel.",
+      h('button', {
+        class: 'btn',
+        type: 'button',
+        onclick: async () => {
+          const saved = await attempt(() => api.vault.backup());
+          if (saved) toast('Copie de sauvegarde enregistrée', { iconName: 'download' });
+        },
+      }, icon('download', 16), 'Sauvegarder une copie…')),
+    setting('Emplacement du coffre', state.vaultPath,
+      h('button', { class: 'btn', type: 'button', onclick: () => attempt(() => api.vault.openFolder()) }, icon('folder', 16), 'Ouvrir le dossier'),
+      'path'));
+}
+
+function aboutCard() {
   const info = state.appInfo;
   const status = h('span', null, describeUpdate(state.update));
-  const autoUpdate = h('input', {
-    type: 'checkbox',
-    class: 'switch',
-    checked: info?.preferences.autoUpdate,
-    'aria-label': 'Mises à jour automatiques',
-    onchange: (event) => attempt(async () => {
-      info.preferences = await api.app.updatePreferences({ autoUpdate: event.target.checked });
-      toast(event.target.checked ? 'Mises à jour automatiques activées' : 'Mises à jour automatiques désactivées');
-    }),
-  });
   const checkButton = h('button', {
     class: 'btn',
     type: 'button',
@@ -103,34 +190,26 @@ function updateSection() {
 
   return h('div', { class: 'card' },
     h('h3', null, 'À propos'),
-    setting(`Coffre-Fort ${info?.version ?? ''}`, status, checkButton),
-    setting('Mises à jour automatiques', "Téléchargées en arrière-plan depuis GitHub, installées à la fermeture de l'application.", autoUpdate));
+    setting(`Coffre-Fort ${info.version}`, status, checkButton),
+    setting('Mises à jour automatiques', "Téléchargées en arrière-plan depuis GitHub, installées en silence à la fermeture de l'application.",
+      toggle('Mises à jour automatiques', info.preferences.autoUpdate, (value) => updatePreferences({ autoUpdate: value },
+        value ? 'Mises à jour automatiques activées' : 'Mises à jour automatiques désactivées'))));
+}
+
+function protectionsCard() {
+  const protections = [
+    'Chiffrement AES-256-GCM : toute modification du fichier est détectée',
+    'Mot de passe maître renforcé par Argon2id',
+    `Presse-papiers exclu de l'historique Windows et du cloud, effacé après ${state.settings.clipboardSeconds} s`,
+    "Fenêtre invisible dans les captures et partages d'écran",
+    'Verrouillage automatique, avec Windows et à la mise en veille',
+    "Interface isolée d'Internet ; seule la recherche de mises à jour contacte GitHub",
+  ];
+  return h('div', { class: 'card' },
+    h('h3', null, 'Protections actives'),
+    h('ul', { class: 'checks' }, protections.map((text) => h('li', null, icon('check', 16), text))));
 }
 
 export function renderSettings(content) {
-  content.append(
-    pageHead('Paramètres'),
-    h('div', { class: 'card' },
-      h('h3', null, 'Sécurité'),
-      setting('Mot de passe maître', "Le seul mot de passe à retenir. Changez-le si vous pensez qu'il a pu être vu.",
-        h('button', { class: 'btn', type: 'button', onclick: changeMasterPasswordModal }, 'Changer…')),
-      setting('Verrouillage automatique', 'Après cette durée sans utilisation. Le coffre se verrouille aussi avec Windows et en veille.', autoLockSelect())),
-    h('div', { class: 'card' },
-      h('h3', null, 'Sauvegarde'),
-      setting('Copie de sauvegarde', "Copie chiffrée, à garder sur une clé USB ou un disque externe. Elle s'ouvre avec le mot de passe maître actuel.",
-        h('button', {
-          class: 'btn',
-          type: 'button',
-          onclick: async () => {
-            const saved = await attempt(() => api.vault.backup());
-            if (saved) toast('Copie de sauvegarde enregistrée', { iconName: 'download' });
-          },
-        }, icon('download', 16), 'Sauvegarder une copie…')),
-      setting('Emplacement du coffre', state.vaultPath,
-        h('button', { class: 'btn', type: 'button', onclick: () => attempt(() => api.vault.openFolder()) }, icon('folder', 16), 'Ouvrir le dossier'),
-        'path')),
-    updateSection(),
-    h('div', { class: 'card' },
-      h('h3', null, 'Protections actives'),
-      h('ul', { class: 'checks' }, PROTECTIONS.map((text) => h('li', null, icon('check', 16), text)))));
+  content.append(pageHead('Paramètres'), securityCard(), systemCard(), backupCard(), aboutCard(), protectionsCard());
 }

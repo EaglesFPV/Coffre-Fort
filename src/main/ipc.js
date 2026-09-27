@@ -10,8 +10,9 @@ const { UserError } = require('./errors');
 const { isTrustedSender } = require('./security');
 const config = require('./config');
 
-const COPYABLE_FIELDS = Object.freeze(['username', 'password', 'notes']);
-const REVEALABLE_FIELDS = Object.freeze(['password', 'notes']);
+const PROTECTED_FIELDS = Object.freeze(['password', 'notes']);
+const COPYABLE_FIELDS = Object.freeze(['username', ...PROTECTED_FIELDS]);
+const MASTER_PASSWORD_REQUIRED = Object.freeze({ requiresMasterPassword: true });
 
 function text(value, max = 200_000) {
   if (typeof value !== 'string' || value.length > max) throw new UserError('Donnée invalide.');
@@ -53,12 +54,14 @@ function snapshot(vault) {
       hasNotes: entry.notes !== '',
       health: perEntry.get(entry.id) ?? null,
     })),
+    identities: vault.identities,
     health: summary,
     settings: vault.settings,
+    protectionLevel: vault.protectionLevel,
   };
 }
 
-function registerIpc({ vaultSession, secretClipboard, preferences, updater, getWindow }) {
+function registerIpc({ vaultSession, secretClipboard, preferences, updater, system, getWindow }) {
   const handle = (channel, handler) => {
     ipcMain.handle(channel, async (event, ...args) => {
       if (!isTrustedSender(event.senderFrame)) return { ok: false, error: 'Appel refusé.' };
@@ -79,13 +82,21 @@ function registerIpc({ vaultSession, secretClipboard, preferences, updater, getW
     return found;
   };
 
+  const identity = (id) => {
+    const found = vaultSession.vault.identities.find((candidate) => candidate.id === text(id, 100));
+    if (!found) throw new UserError('Identité introuvable.');
+    return found;
+  };
+
   handle('vault:state', () => ({ exists: vaultSession.exists, unlocked: vaultSession.isUnlocked, path: config.vaultPath }));
   handle('vault:create', (password) => vaultSession.create(password));
   handle('vault:unlock', (password) => vaultSession.unlock(password));
   handle('vault:lock', () => vaultSession.lock('manual'));
   handle('vault:activity', () => undefined);
+  handle('vault:confirm-master', (password) => vaultSession.confirmMasterPassword(password));
   handle('vault:change-master', (current, next) => vaultSession.changeMasterPassword(current, next));
-  handle('vault:settings', (settings) => vaultSession.vault.updateSettings(object(settings)));
+  handle('vault:protection', (password, level) => vaultSession.changeProtectionLevel(password, level));
+  handle('vault:settings', (changes) => vaultSession.vault.updateSettings(object(changes)));
   handle('vault:open-folder', () => shell.openPath(config.vaultDir).then(() => undefined));
   handle('vault:backup', async () => {
     vaultSession.assertUnlocked();
@@ -105,8 +116,10 @@ function registerIpc({ vaultSession, secretClipboard, preferences, updater, getW
 
   handle('items:list', () => snapshot(vaultSession.vault));
   handle('items:reveal', (id, field) => {
-    if (!REVEALABLE_FIELDS.includes(field)) throw new UserError('Champ inconnu.');
-    return entry(id)[field];
+    if (!PROTECTED_FIELDS.includes(field)) throw new UserError('Champ inconnu.');
+    const value = entry(id)[field];
+    if (vaultSession.needsMasterPassword) return MASTER_PASSWORD_REQUIRED;
+    return { value };
   });
   handle('items:save', (item) => {
     const source = object(item);
@@ -140,6 +153,7 @@ function registerIpc({ vaultSession, secretClipboard, preferences, updater, getW
     if (!COPYABLE_FIELDS.includes(field)) throw new UserError('Champ inconnu.');
     const value = entry(id)[field];
     if (!value) throw new UserError('Rien à copier.');
+    if (PROTECTED_FIELDS.includes(field) && vaultSession.needsMasterPassword) return MASTER_PASSWORD_REQUIRED;
     return secretClipboard.copy(value);
   });
   handle('items:open-url', async (id) => {
@@ -148,6 +162,10 @@ function registerIpc({ vaultSession, secretClipboard, preferences, updater, getW
     await shell.openExternal(toWebUrl(raw));
   });
 
+  handle('identities:save', (id, fields) => vaultSession.vault.saveIdentity(id ? text(id, 100) : null, object(fields)));
+  handle('identities:remove', (id) => vaultSession.vault.removeIdentity(text(id, 100)));
+  handle('identities:copy', (id) => secretClipboard.copy(identity(id).value));
+
   handle('passwords:generate', (options) => passwords.generate(object(options)));
   handle('passwords:estimate', (password) => passwords.estimate(text(password, 10_000)));
   handle('passwords:copy', (password) => {
@@ -155,11 +173,17 @@ function registerIpc({ vaultSession, secretClipboard, preferences, updater, getW
     return secretClipboard.copy(text(password, 1000));
   });
 
-  handle('app:info', () => ({ version: app.getVersion(), preferences: preferences.values, update: updater.status }));
+  handle('app:info', () => ({
+    version: app.getVersion(),
+    packaged: app.isPackaged,
+    preferences: preferences.values,
+    update: updater.status,
+  }));
   handle('app:preferences', (changes) => {
-    const values = preferences.update(object(changes));
-    updater.setAutomatic(values.autoUpdate);
-    return values;
+    const next = preferences.preview(object(changes));
+    system.apply(next);
+    updater.setAutomatic(next.autoUpdate);
+    return preferences.save(next);
   });
   handle('update:check', () => updater.check());
   handle('update:install', () => updater.install());

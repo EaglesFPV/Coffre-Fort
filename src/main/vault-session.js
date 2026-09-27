@@ -3,7 +3,7 @@
 const fs = require('node:fs');
 const { EventEmitter } = require('node:events');
 const { powerMonitor } = require('electron');
-const { Vault } = require('../core/vault');
+const { Vault, PROTECTION_LEVELS } = require('../core/vault');
 const { estimate } = require('../core/passwords');
 const { UserError } = require('./errors');
 const config = require('./config');
@@ -26,6 +26,7 @@ class VaultSession extends EventEmitter {
   #failedAttempts = 0;
   #lastActivity = Date.now();
   #timer = null;
+  #confirmedUntil = 0;
 
   get exists() {
     return fs.existsSync(config.vaultPath);
@@ -44,6 +45,10 @@ class VaultSession extends EventEmitter {
     if (!this.#vault) throw new UserError('Le coffre est verrouillé.');
   }
 
+  get needsMasterPassword() {
+    return this.vault.settings.requireMasterPassword && Date.now() > this.#confirmedUntil;
+  }
+
   touch() {
     this.#lastActivity = Date.now();
   }
@@ -52,7 +57,7 @@ class VaultSession extends EventEmitter {
     return this.#exclusive(async () => {
       assertStrongMasterPassword(password);
       this.#vault = await Vault.create(config.vaultPath, password);
-      this.touch();
+      this.#opened();
     });
   }
 
@@ -67,7 +72,28 @@ class VaultSession extends EventEmitter {
         throw error;
       }
       this.#failedAttempts = 0;
-      this.touch();
+      this.#opened();
+    });
+  }
+
+  confirmMasterPassword(password) {
+    return this.#exclusive(async () => {
+      if (typeof password !== 'string' || !(await this.vault.checkPassword(password))) {
+        throw new UserError('Mot de passe maître incorrect.');
+      }
+      this.#confirmedUntil = Date.now() + config.masterPasswordGraceMs;
+    });
+  }
+
+  changeProtectionLevel(password, level) {
+    return this.#exclusive(async () => {
+      const kdf = PROTECTION_LEVELS[level];
+      if (!kdf) throw new UserError('Niveau de protection inconnu.');
+      const vault = this.vault;
+      if (typeof password !== 'string' || !(await vault.checkPassword(password))) {
+        throw new UserError('Mot de passe maître incorrect.');
+      }
+      await vault.changePassword(password, kdf);
     });
   }
 
@@ -86,6 +112,7 @@ class VaultSession extends EventEmitter {
     if (!this.#vault || this.#busy) return false;
     this.#vault.lock();
     this.#vault = null;
+    this.#confirmedUntil = 0;
     this.emit('locked', reason);
     return true;
   }
@@ -104,6 +131,12 @@ class VaultSession extends EventEmitter {
     clearInterval(this.#timer);
     if (this.#vault) this.#vault.lock();
     this.#vault = null;
+  }
+
+  #opened() {
+    this.#confirmedUntil = 0;
+    this.touch();
+    this.emit('unlocked');
   }
 
   async #exclusive(task) {

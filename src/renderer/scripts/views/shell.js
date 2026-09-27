@@ -9,16 +9,26 @@ import { closePanel, newItem } from './panel.js';
 import { renderHealth } from './health.js';
 import { renderGenerator } from './generator.js';
 import { renderSettings } from './settings.js';
+import { IDENTITY_COLOR, editIdentity, renderIdentities } from './identities.js';
 
-const PAGES = { logins: renderItems, notes: renderItems, health: renderHealth, generator: renderGenerator, settings: renderSettings };
+const PAGES = {
+  logins: renderItems,
+  notes: renderItems,
+  identities: renderIdentities,
+  health: renderHealth,
+  generator: renderGenerator,
+  settings: renderSettings,
+};
 
 export const isListView = () => state.view === 'logins' || state.view === 'notes';
 
 export async function loadData() {
   const snapshot = await api.items.list();
   state.items = snapshot.items;
+  state.identities = snapshot.identities;
   state.health = snapshot.health;
   state.settings = snapshot.settings;
+  state.protectionLevel = snapshot.protectionLevel;
 }
 
 export async function enterVault() {
@@ -48,7 +58,8 @@ function addMenu() {
     type: 'button',
     onclick: () => {
       wrapper.querySelector('.menu')?.remove();
-      newItem(type);
+      if (type === 'identity') editIdentity();
+      else newItem(type);
     },
   },
   h('span', { class: 'menu-icon', style: { background: color } }, icon(iconName, 17)),
@@ -65,7 +76,8 @@ function addMenu() {
       }
       wrapper.append(h('div', { class: 'menu', role: 'menu' },
         option('login', PALETTE[0], 'key', 'Identifiant', 'Site web, application…'),
-        option('note', NOTE_COLOR, 'note', 'Note sécurisée', 'Code Wi-Fi, codes de secours…')));
+        option('note', NOTE_COLOR, 'note', 'Note sécurisée', 'Code Wi-Fi, codes de secours…'),
+        option('identity', IDENTITY_COLOR, 'users', 'Identité', 'E-mail, pseudo, téléphone…')));
     },
   }, icon('plus', 18), 'Ajouter', icon('chevronDown', 16)));
   return wrapper;
@@ -139,6 +151,7 @@ export function renderSidebar() {
     h('div', { class: 'brand' }, logo(36), 'Coffre-Fort'),
     navItem('logins', 'key', 'Identifiants', h('span', { class: 'count' }, String(logins.length))),
     navItem('notes', 'note', 'Notes sécurisées', h('span', { class: 'count' }, String(notes.length))),
+    navItem('identities', 'users', 'Identités', h('span', { class: 'count' }, String(state.identities.length))),
     navItem('health', 'shieldCheck', 'Santé des mots de passe', healthPill),
     navItem('generator', 'zap', 'Générateur'),
     h('div', { class: 'nav-section' }, state.view === 'notes' ? 'Filtrer les notes' : 'Filtrer les identifiants'),

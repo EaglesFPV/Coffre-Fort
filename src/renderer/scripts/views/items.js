@@ -5,13 +5,14 @@ import { byTitle, domainOf, groupLetter, normalizeQuery, plural } from '../lib/f
 import { state } from '../state.js';
 import { emptyState, pageHead, tile } from '../ui/components.js';
 import { attempt, toast } from '../ui/feedback.js';
+import { withMasterPassword } from '../ui/master-password.js';
 import { newItem, openItem, renderPanel } from './panel.js';
 import { reload } from './shell.js';
 
 const COPY_LABELS = Object.freeze({ username: 'Identifiant copié', password: 'Mot de passe copié', notes: 'Contenu copié' });
 
 export async function copyField(item, field) {
-  const result = await attempt(() => api.items.copy(item.id, field));
+  const result = await attempt(() => withMasterPassword(() => api.items.copy(item.id, field)));
   if (result) toast(COPY_LABELS[field], { iconName: 'copy', countdown: result.seconds });
 }
 

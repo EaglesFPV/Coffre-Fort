@@ -3,7 +3,7 @@
 const { BrowserWindow } = require('electron');
 const config = require('./config');
 
-function createMainWindow() {
+function createMainWindow({ show = true } = {}) {
   const window = new BrowserWindow({
     width: 1240,
     height: 800,
@@ -11,6 +11,7 @@ function createMainWindow() {
     minHeight: 620,
     show: false,
     title: 'Coffre-Fort',
+    icon: config.iconPath,
     backgroundColor: '#0b2d35',
     webPreferences: {
       preload: config.preloadPath,
@@ -25,7 +26,7 @@ function createMainWindow() {
     },
   });
   window.setContentProtection(true);
-  window.once('ready-to-show', () => window.show());
+  if (show) window.once('ready-to-show', () => window.show());
   window.loadURL(config.entryUrl);
   return window;
 }

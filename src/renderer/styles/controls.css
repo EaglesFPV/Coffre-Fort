@@ -66,6 +66,7 @@ input.switch:checked::after { transform: translateX(18px); }
   font-size: 12px; padding: 3px 10px; border-radius: 999px; white-space: nowrap;
   background: var(--surface-2); color: var(--muted); border: 1px solid var(--border);
 }
+.chip.accent { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); color: var(--accent); border-color: transparent; font-weight: 600; }
 
 .spinner {
   width: 16px; height: 16px; border-radius: 50%;

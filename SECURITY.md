@@ -18,13 +18,15 @@ aux installations existantes.
 ### Ce contre quoi Coffre-Fort protège
 
 - **Vol du fichier du coffre** (copie du disque, sauvegarde, clé USB perdue) : sans le mot de passe
-  maître, le contenu est inexploitable. Chaque essai coûte environ une seconde et 256 Mio de mémoire.
+  maître, le contenu est inexploitable. Au niveau par défaut, chaque essai coûte environ une seconde
+  et 256 Mio de mémoire.
 - **Altération du fichier** : toute modification, même d'un seul octet, est détectée à l'ouverture.
 - **Fuite par le presse-papiers** : les données copiées sont exclues de l'historique Windows et de la
-  synchronisation cloud, puis effacées après 20 secondes.
+  synchronisation cloud, puis effacées après un délai réglable (20 secondes par défaut).
 - **Captures et partages d'écran** : la fenêtre est exclue des captures.
 - **Poste laissé sans surveillance** : verrouillage automatique après inactivité, au verrouillage de
-  la session Windows et à la mise en veille.
+  la session Windows, à la mise en veille et, en option, à la réduction de la fenêtre. Le mot de passe
+  maître peut être exigé à nouveau avant d'afficher un secret.
 - **Contenu malveillant dans l'interface** : bac à sable Chromium, isolation du contexte, politique
   de sécurité du contenu stricte, aucune ressource distante, aucune navigation possible.
 
@@ -41,7 +43,9 @@ aux installations existantes.
 
 | Élément | Choix |
 |---|---|
-| Dérivation de clé | Argon2id, 3 passes, 256 Mio, parallélisme 4, sel aléatoire de 16 octets |
+| Dérivation de clé | Argon2id, parallélisme 4, sel aléatoire de 16 octets ; Standard 3 passes / 64 Mio, Renforcé 3 passes / 256 Mio (par défaut), Maximal 4 passes / 512 Mio |
+| Réglages de sécurité | Stockés dans le coffre chiffré : ils ne peuvent pas être désactivés en modifiant un fichier |
+| Confirmation | Mot de passe maître exigé (en option) avant d'afficher, copier ou modifier un secret, avec un délai de grâce de 2 minutes |
 | Chiffrement | AES-256-GCM, nonce aléatoire de 12 octets renouvelé à chaque enregistrement |
 | Authentification | En-tête (paramètres, sel, nonce) authentifié comme données associées (AAD) |
 | Remplissage | Contenu arrondi par blocs de 4 Kio avant chiffrement |

@@ -2,21 +2,23 @@
 
 const { EventEmitter } = require('node:events');
 const { clipboard } = require('electron');
-const config = require('./config');
 
 const windowsClipboard = process.platform === 'win32' ? require('./platform/windows-clipboard') : null;
 
 class SecretClipboard extends EventEmitter {
   #getWindow;
+  #getClearDelay;
   #token = null;
   #timer = null;
 
-  constructor(getWindow) {
+  constructor({ getWindow, getClearDelay }) {
     super();
     this.#getWindow = getWindow;
+    this.#getClearDelay = getClearDelay;
   }
 
   copy(text) {
+    const seconds = this.#getClearDelay();
     this.clear();
     if (windowsClipboard) {
       this.#token = { sequence: windowsClipboard.writeSecret(this.#windowHandle(), text) };
@@ -27,8 +29,8 @@ class SecretClipboard extends EventEmitter {
     this.#timer = setTimeout(() => {
       this.clear();
       this.emit('cleared');
-    }, config.clipboardClearSeconds * 1000);
-    return { seconds: config.clipboardClearSeconds };
+    }, seconds * 1000);
+    return { seconds };
   }
 
   clear() {
