@@ -1,7 +1,7 @@
 {
   "name": "coffre-fort",
   "productName": "Coffre-Fort",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Gestionnaire de mots de passe local et chiffré pour Windows",
   "author": "EaglesFPV",
   "license": "MIT",
