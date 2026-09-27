@@ -3,7 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { app, dialog, ipcMain, shell } = require('electron');
-const { VaultError } = require('../core/vault');
+const { VaultError, IDENTITY_FIELDS } = require('../core/vault');
 const passwords = require('../core/passwords');
 const { analyze } = require('../core/health');
 const { UserError } = require('./errors');
@@ -11,7 +11,7 @@ const { isTrustedSender } = require('./security');
 const config = require('./config');
 
 const PROTECTED_FIELDS = Object.freeze(['password', 'notes']);
-const COPYABLE_FIELDS = Object.freeze(['username', ...PROTECTED_FIELDS]);
+const COPYABLE_FIELDS = Object.freeze(['username', 'email', 'phone', ...PROTECTED_FIELDS]);
 const MASTER_PASSWORD_REQUIRED = Object.freeze({ requiresMasterPassword: true });
 
 function text(value, max = 200_000) {
@@ -44,6 +44,8 @@ function snapshot(vault) {
       type: entry.type,
       title: entry.title,
       username: entry.username,
+      email: entry.email,
+      phone: entry.phone,
       url: entry.url,
       category: entry.category,
       favorite: entry.favorite,
@@ -127,6 +129,8 @@ function registerIpc({ vaultSession, secretClipboard, preferences, updater, syst
       type: source.type === 'note' ? 'note' : 'login',
       title: text(source.title ?? '', 500).trim(),
       username: text(source.username ?? '', 1000),
+      email: text(source.email ?? '', 1000).trim(),
+      phone: text(source.phone ?? '', 100).trim(),
       password: text(source.password ?? '', 10_000),
       url: text(source.url ?? '', 2000).trim(),
       category: text(source.category ?? '', 100).trim(),
@@ -164,7 +168,12 @@ function registerIpc({ vaultSession, secretClipboard, preferences, updater, syst
 
   handle('identities:save', (id, fields) => vaultSession.vault.saveIdentity(id ? text(id, 100) : null, object(fields)));
   handle('identities:remove', (id) => vaultSession.vault.removeIdentity(text(id, 100)));
-  handle('identities:copy', (id) => secretClipboard.copy(identity(id).value));
+  handle('identities:copy', (id, field) => {
+    if (!IDENTITY_FIELDS.includes(field)) throw new UserError('Champ inconnu.');
+    const value = identity(id)[field];
+    if (!value) throw new UserError('Rien à copier.');
+    return secretClipboard.copy(value);
+  });
 
   handle('passwords:generate', (options) => passwords.generate(object(options)));
   handle('passwords:estimate', (password) => passwords.estimate(text(password, 10_000)));

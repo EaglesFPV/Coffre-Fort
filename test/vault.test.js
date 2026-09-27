@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const { Vault, VaultError, WrongPasswordError, PAD_BLOCK, PROTECTION_LEVELS } = require('../src/core/vault');
+const { Vault, VaultError, WrongPasswordError, PAD_BLOCK, PROTECTION_LEVELS, normalizeIdentity } = require('../src/core/vault');
 
 const FAST_KDF = { t: 1, m: 8 * 1024, p: 1 };
 const PASSWORD = 'cheval agrafe batterie correcte';
@@ -123,23 +123,46 @@ test('valide et chiffre les réglages', async () => {
   assert.throws(() => vault.updateSettings({ inconnu: true }), VaultError);
 });
 
-test('gère les identités avec une seule identité par défaut', async () => {
+test("gère des profils d'identité complets avec un seul profil par défaut", async () => {
   const file = temporaryVaultPath();
   const vault = await Vault.create(file, PASSWORD, FAST_KDF);
-  const personal = vault.saveIdentity(null, { kind: 'email', value: ' moi@exemple.fr ', label: 'Personnel', isDefault: true });
-  const gaming = vault.saveIdentity(null, { kind: 'username', value: 'LeJoueur', isDefault: true });
+  const personal = vault.saveIdentity(null, {
+    name: 'Personnel', fullName: 'Jean Dupont', email: ' moi@exemple.fr ', phone: '06 12 34 56 78', address: '1 rue X\n75000 Paris', isDefault: true,
+  });
+  const gaming = vault.saveIdentity(null, { name: 'Jeux', username: 'LeJoueur', isDefault: true });
   const reopened = await Vault.open(file, PASSWORD);
-  assert.equal(reopened.identities.length, 2);
-  assert.equal(reopened.identities.find((identity) => identity.id === personal).value, 'moi@exemple.fr');
+  const saved = reopened.identities.find((identity) => identity.id === personal);
+  assert.equal(saved.email, 'moi@exemple.fr');
+  assert.equal(saved.phone, '06 12 34 56 78');
+  assert.equal(saved.address, '1 rue X\n75000 Paris');
+  assert.equal(saved.username, '');
   assert.deepEqual(reopened.identities.filter((identity) => identity.isDefault).map((identity) => identity.id), [gaming]);
-  assert.equal(fs.readFileSync(file).includes(Buffer.from('LeJoueur')), false);
+  for (const marker of ['LeJoueur', 'Jean Dupont', '06 12 34 56 78']) {
+    assert.equal(fs.readFileSync(file).includes(Buffer.from(marker)), false, marker);
+  }
 
-  vault.saveIdentity(gaming, { kind: 'username', value: 'LeJoueur42', isDefault: false });
-  assert.equal(vault.identities.find((identity) => identity.id === gaming).value, 'LeJoueur42');
+  vault.saveIdentity(gaming, { name: 'Jeux', username: 'LeJoueur42' });
+  assert.equal(vault.identities.find((identity) => identity.id === gaming).username, 'LeJoueur42');
   vault.removeIdentity(personal);
   assert.equal(vault.identities.length, 1);
-  assert.throws(() => vault.saveIdentity(null, { kind: 'email', value: '   ' }), VaultError);
-  assert.throws(() => vault.saveIdentity(null, { kind: 'fax', value: 'x' }), VaultError);
+  assert.throws(() => vault.saveIdentity(null, { name: 'Vide', email: '   ' }), VaultError);
+  assert.throws(() => vault.saveIdentity(null, { name: '', email: 'a@b.c' }), VaultError);
+});
+
+test('convertit les anciennes identités en profils', () => {
+  assert.deepEqual(normalizeIdentity({ id: 'a', kind: 'email', label: 'Travail', value: 'j@pro.fr', isDefault: true }),
+    { id: 'a', name: 'Travail', fullName: '', email: 'j@pro.fr', username: '', phone: '', address: '', isDefault: true });
+  assert.deepEqual(normalizeIdentity({ id: 'b', kind: 'phone', label: '', value: '0600000000' }),
+    { id: 'b', name: 'Téléphone', fullName: '', email: '', username: '', phone: '0600000000', address: '', isDefault: false });
+});
+
+test("enregistre l'e-mail et le téléphone d'un identifiant", async () => {
+  const file = temporaryVaultPath();
+  const vault = await Vault.create(file, PASSWORD, FAST_KDF);
+  const entry = vault.add({ title: 'Banque', username: 'client123', email: 'moi@exemple.fr', phone: '0600000000', password: 'x' });
+  const saved = (await Vault.open(file, PASSWORD)).get(entry.id);
+  assert.equal(saved.email, 'moi@exemple.fr');
+  assert.equal(saved.phone, '0600000000');
 });
 
 test('change le niveau de protection sans perdre les données', async () => {

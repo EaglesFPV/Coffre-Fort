@@ -77,7 +77,7 @@ function addMenu() {
       wrapper.append(h('div', { class: 'menu', role: 'menu' },
         option('login', PALETTE[0], 'key', 'Identifiant', 'Site web, application…'),
         option('note', NOTE_COLOR, 'note', 'Note sécurisée', 'Code Wi-Fi, codes de secours…'),
-        option('identity', IDENTITY_COLOR, 'users', 'Identité', 'E-mail, pseudo, téléphone…')));
+        option('identity', IDENTITY_COLOR, 'users', "Profil d'identité", 'Nom, e-mail, téléphone, adresse…')));
     },
   }, icon('plus', 18), 'Ajouter', icon('chevronDown', 16)));
   return wrapper;

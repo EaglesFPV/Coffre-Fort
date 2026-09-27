@@ -35,9 +35,9 @@ sécurité repose sur des algorithmes standards et éprouvés : **Argon2id** et 
 
 | | |
 |---|---|
-| **Identifiants** | Nom, identifiant, mot de passe, site, catégorie et notes. Copie en un clic, ouverture du site. |
+| **Identifiants** | Nom, identifiant, e-mail, téléphone, mot de passe, site, catégorie et notes. Copie en un clic, ouverture du site. |
 | **Notes sécurisées** | Codes Wi-Fi, codes de secours, licences : tout ce qui doit rester secret. |
-| **Identités** | Vos e-mails, pseudos, téléphones et noms, copiables en un clic. L'identité par défaut préremplit les nouveaux identifiants, les autres sont suggérées. |
+| **Profils d'identité** | Nom complet, e-mail, pseudo, téléphone et adresse regroupés par profil (Personnel, Travail…). Un profil remplit d'un coup l'identifiant, l'e-mail et le téléphone d'un compte. |
 | **Santé des mots de passe** | Score sur 100 et liste des mots de passe réutilisés, faibles ou anciens, analysés localement. |
 | **Générateur** | De 8 à 64 caractères, choix des catégories, caractères ambigus évitables, entropie affichée. |
 | **Organisation** | Catégories, favoris épinglés, recherche instantanée, regroupement alphabétique. |

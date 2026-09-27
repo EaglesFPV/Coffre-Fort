@@ -8,7 +8,7 @@ import { attempt, toast } from '../ui/feedback.js';
 import { confirmModal } from '../ui/modal.js';
 import { withMasterPassword } from '../ui/master-password.js';
 import { copyField, toggleFavorite } from './items.js';
-import { defaultIdentityValue, identitySuggestions } from './identities.js';
+import { defaultIdentity, identityLoginValues, usernameSuggestions } from './identities.js';
 import { isListView, loadData, reload, renderContent, renderSidebar } from './shell.js';
 
 const MASK = '••••••••••••';
@@ -138,6 +138,14 @@ async function detailView(item) {
     fields.append(field('Identifiant',
       h('div', { class: `field-value selectable${item.username ? '' : ' placeholder'}` }, item.username || 'Non renseigné'),
       iconButton('copy', "Copier l'identifiant", () => copyField(item, 'username'), { disabled: !item.username })));
+    if (item.email) {
+      fields.append(field('E-mail', h('div', { class: 'field-value selectable' }, item.email),
+        iconButton('copy', "Copier l'e-mail", () => copyField(item, 'email'))));
+    }
+    if (item.phone) {
+      fields.append(field('Téléphone', h('div', { class: 'field-value selectable' }, item.phone),
+        iconButton('copy', 'Copier le téléphone', () => copyField(item, 'phone'))));
+    }
     fields.append(passwordField(item), ...healthFlags(item.health));
     if (item.url) {
       fields.append(field('Site web', h('div', { class: 'field-value selectable' }, item.url),
@@ -169,15 +177,35 @@ async function editView(item, type) {
   if (notes === null) return null;
 
   const title = h('input', { class: 'input', value: item?.title ?? '', placeholder: isLogin ? 'Ex. : Messagerie, Banque…' : 'Ex. : Code Wi-Fi', maxlength: '500' });
+  const initial = item ?? identityLoginValues(defaultIdentity());
   const username = h('input', {
     class: 'input',
-    value: item ? item.username : defaultIdentityValue(),
+    value: initial.username,
     placeholder: "Adresse e-mail ou nom d'utilisateur",
-    list: 'identity-options',
+    list: 'username-options',
     spellcheck: 'false',
   });
-  const usernameOptions = h('datalist', { id: 'identity-options' },
-    identitySuggestions().map((identity) => h('option', { value: identity.value }, identity.label)));
+  const usernameOptions = h('datalist', { id: 'username-options' }, usernameSuggestions().map((value) => h('option', { value })));
+  const email = h('input', { class: 'input', type: 'email', value: initial.email, placeholder: 'Facultatif', spellcheck: 'false' });
+  const phone = h('input', { class: 'input', type: 'tel', value: initial.phone, placeholder: 'Facultatif', spellcheck: 'false' });
+  const profile = state.identities.length && isLogin ? h('select', {
+    class: 'input',
+    'aria-label': "Profil d'identité",
+    onchange: (event) => {
+      const chosen = state.identities.find((identity) => identity.id === event.target.value);
+      if (!chosen) return;
+      const values = identityLoginValues(chosen);
+      username.value = values.username;
+      email.value = values.email;
+      phone.value = values.phone;
+    },
+  },
+  h('option', { value: '' }, item ? 'Appliquer un profil…' : 'Aucun'),
+  [...state.identities].sort((a, b) => a.name.localeCompare(b.name, 'fr')).map((identity) => {
+    const option = h('option', { value: identity.id }, identity.name);
+    option.selected = !item && identity.isDefault;
+    return option;
+  })) : null;
   const secret = h('input', { class: 'input mono', type: 'password', value: password, spellcheck: 'false', autocomplete: 'off' });
   const url = h('input', { class: 'input', value: item?.url ?? '', placeholder: 'exemple.fr', spellcheck: 'false' });
   const [category, categoryOptions] = categoryInput(item?.category ?? '');
@@ -211,7 +239,7 @@ async function editView(item, type) {
         category: category.value,
         notes: content.value,
         favorite: favorite.checked,
-        ...(isLogin ? { username: username.value, password: secret.value, url: url.value } : {}),
+        ...(isLogin ? { username: username.value, email: email.value, phone: phone.value, password: secret.value, url: url.value } : {}),
       });
       secret.value = '';
       state.panel = { id, type, mode: 'view', isNew: false };
@@ -262,7 +290,9 @@ async function editView(item, type) {
   },
   labelled('Nom', title),
   isLogin ? [
+    profile ? labelled("Profil d'identité", profile) : null,
     labelled('Identifiant', username, usernameOptions),
+    h('div', { class: 'form-grid' }, labelled('E-mail', email), labelled('Téléphone', phone)),
     labelled('Mot de passe', passwordInput(secret, generate), meter),
     labelled('Site web', url),
   ] : null,

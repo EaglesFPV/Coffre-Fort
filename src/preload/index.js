@@ -42,7 +42,7 @@ contextBridge.exposeInMainWorld('coffre', {
   identities: {
     save: (id, fields) => invoke('identities:save', id, fields),
     remove: (id) => invoke('identities:remove', id),
-    copy: (id) => invoke('identities:copy', id),
+    copy: (id, field) => invoke('identities:copy', id, field),
   },
   passwords: {
     generate: (options) => invoke('passwords:generate', options),

@@ -1,7 +1,8 @@
 import { api } from '../api.js';
 import { h, iconButton } from '../lib/dom.js';
 import { icon } from '../lib/icons.js';
-import { IDENTITY_KINDS, state } from '../state.js';
+import { initials } from '../lib/format.js';
+import { IDENTITY_FIELDS, state } from '../state.js';
 import { emptyState, pageHead, setBusy } from '../ui/components.js';
 import { attempt, toast } from '../ui/feedback.js';
 import { closeModal, confirmModal, openModal } from '../ui/modal.js';
@@ -9,15 +10,22 @@ import { reload } from './shell.js';
 
 export const IDENTITY_COLOR = '#0369a1';
 
-const KIND_ORDER = Object.keys(IDENTITY_KINDS);
+export const defaultIdentity = () => state.identities.find((identity) => identity.isDefault) ?? null;
 
-export function identitySuggestions() {
-  return state.identities.filter((identity) => identity.kind === 'email' || identity.kind === 'username');
+export function identityLoginValues(identity) {
+  return {
+    username: identity?.username || identity?.email || '',
+    email: identity?.email ?? '',
+    phone: identity?.phone ?? '',
+  };
 }
 
-export function defaultIdentityValue() {
-  return state.identities.find((identity) => identity.isDefault)?.value ?? '';
+export function usernameSuggestions() {
+  const values = state.identities.flatMap((identity) => [identity.email, identity.username]).filter(Boolean);
+  return [...new Set(values)];
 }
+
+const byName = (a, b) => Number(b.isDefault) - Number(a.isDefault) || a.name.localeCompare(b.name, 'fr');
 
 async function save(id, fields) {
   await api.identities.save(id, fields);
@@ -25,56 +33,56 @@ async function save(id, fields) {
 }
 
 export function editIdentity(existing = null) {
-  const kind = h('select', { class: 'input', 'aria-label': "Type d'identité" }, KIND_ORDER.map((key) => {
-    const option = h('option', { value: key }, IDENTITY_KINDS[key].label);
-    option.selected = key === (existing?.kind ?? 'email');
-    return option;
+  const name = h('input', { class: 'input', value: existing?.name ?? '', placeholder: 'Ex. : Personnel, Travail, Jeux…', maxlength: '60' });
+  const inputs = Object.fromEntries(IDENTITY_FIELDS.map((definition) => {
+    const control = definition.multiline
+      ? h('textarea', { class: 'input', rows: '3', placeholder: definition.placeholder, spellcheck: 'false' })
+      : h('input', { class: 'input', placeholder: definition.placeholder, spellcheck: 'false', autocomplete: 'off' });
+    control.value = existing?.[definition.key] ?? '';
+    return [definition.key, control];
   }));
-  const value = h('input', { class: 'input', value: existing?.value ?? '', spellcheck: 'false', autocomplete: 'off' });
-  const label = h('input', { class: 'input', value: existing?.label ?? '', placeholder: 'Ex. : Personnel, Travail, Jeux…', maxlength: '60' });
-  const isDefault = h('input', { type: 'checkbox', class: 'switch', checked: existing?.isDefault });
+  const isDefault = h('input', { type: 'checkbox', class: 'switch', checked: existing ? existing.isDefault : state.identities.length === 0 });
   const feedback = h('div', { class: 'message error' });
   const submit = h('button', { class: 'btn primary', type: 'submit' }, 'Enregistrer');
-  const syncPlaceholder = () => { value.placeholder = IDENTITY_KINDS[kind.value].placeholder; };
-  kind.addEventListener('change', syncPlaceholder);
-  syncPlaceholder();
 
   openModal(h('form', {
-    class: 'modal',
+    class: 'modal wide',
     role: 'dialog',
     'aria-modal': 'true',
     onsubmit: async (event) => {
       event.preventDefault();
       feedback.textContent = '';
       setBusy(submit, true, 'Enregistrement…');
+      const fields = { name: name.value, isDefault: isDefault.checked };
+      for (const [key, control] of Object.entries(inputs)) fields[key] = control.value;
       try {
-        await save(existing?.id ?? null, { kind: kind.value, value: value.value, label: label.value, isDefault: isDefault.checked });
+        await save(existing?.id ?? null, fields);
         closeModal();
-        toast(existing ? 'Identité modifiée' : 'Identité ajoutée');
+        toast(existing ? 'Profil modifié' : 'Profil ajouté');
       } catch (error) {
         setBusy(submit, false);
         feedback.textContent = error.message;
       }
     },
   },
-  h('h2', null, existing ? "Modifier l'identité" : 'Nouvelle identité'),
-  h('p', null, 'Vos e-mails et pseudos sont proposés automatiquement quand vous ajoutez un identifiant.'),
+  h('h2', null, existing ? 'Modifier le profil' : "Nouveau profil d'identité"),
+  h('p', null, "Remplissez seulement ce qui vous est utile. Le profil remplit d'un coup l'identifiant, l'e-mail et le téléphone de vos comptes."),
   h('div', { class: 'stack' },
-    h('div', null, h('label', { class: 'label' }, 'Type'), kind),
-    h('div', null, h('label', { class: 'label' }, 'Valeur'), value),
-    h('div', null, h('label', { class: 'label' }, 'Libellé (facultatif)'), label),
-    h('label', { class: 'toggle' }, h('span', null, 'Utiliser par défaut pour les nouveaux identifiants'), isDefault)),
+    h('div', null, h('label', { class: 'label' }, 'Nom du profil'), name),
+    h('div', { class: 'form-grid' }, IDENTITY_FIELDS.map((definition) => h('div', { class: definition.multiline ? 'span-2' : null },
+      h('label', { class: 'label' }, definition.label), inputs[definition.key]))),
+    h('label', { class: 'toggle' }, h('span', null, 'Profil par défaut pour les nouveaux identifiants'), isDefault)),
   feedback,
   h('div', { class: 'actions' },
     h('button', { class: 'btn', type: 'button', onclick: closeModal }, 'Annuler'),
     submit)));
-  value.focus();
+  name.focus();
 }
 
 async function removeIdentity(identity) {
   const confirmed = await confirmModal({
-    title: `Supprimer « ${identity.value} » ?`,
-    text: 'Cette identité sera retirée du coffre. Les identifiants existants ne sont pas modifiés.',
+    title: `Supprimer le profil « ${identity.name} » ?`,
+    text: 'Le profil sera retiré du coffre. Les identifiants déjà remplis ne sont pas modifiés.',
     confirmLabel: 'Supprimer',
     danger: true,
   });
@@ -82,54 +90,48 @@ async function removeIdentity(identity) {
   await attempt(async () => {
     await api.identities.remove(identity.id);
     await reload();
-    toast('Identité supprimée', { iconName: 'trash' });
+    toast('Profil supprimé', { iconName: 'trash' });
   });
 }
 
-async function copyIdentity(identity) {
-  const result = await attempt(() => api.identities.copy(identity.id));
-  if (result) toast(`${IDENTITY_KINDS[identity.kind].label} copié`, { iconName: 'copy', countdown: result.seconds });
+async function copyField(identity, definition) {
+  const result = await attempt(() => api.identities.copy(identity.id, definition.key));
+  if (result) toast(`${definition.label} copié`, { iconName: 'copy', countdown: result.seconds });
 }
 
-function row(identity) {
-  const kind = IDENTITY_KINDS[identity.kind];
-  const tileElement = h('div', { class: 'tile' }, icon(kind.icon, 19));
-  tileElement.style.background = IDENTITY_COLOR;
-  return h('div', { class: 'row', tabindex: '0', role: 'button', onclick: () => editIdentity(identity) },
-    tileElement,
-    h('div', { class: 'row-main' },
-      h('div', { class: 'row-title selectable' }, identity.value),
-      h('div', { class: 'row-sub' }, identity.label ? `${kind.label} · ${identity.label}` : kind.label)),
-    identity.isDefault ? h('span', { class: 'chip accent' }, 'Par défaut') : null,
-    h('div', { class: 'row-actions' },
-      iconButton('copy', 'Copier', () => copyIdentity(identity)),
+function card(identity) {
+  const avatar = h('div', { class: 'tile' }, initials(identity.name));
+  avatar.style.background = IDENTITY_COLOR;
+  const lines = IDENTITY_FIELDS.filter((definition) => identity[definition.key]).map((definition) => h('div', { class: 'identity-line' },
+    h('span', { class: 'identity-icon' }, icon(definition.icon, 16)),
+    h('div', { class: 'identity-text' },
+      h('div', { class: 'identity-label' }, definition.label),
+      h('div', { class: `identity-value selectable${definition.multiline ? ' multiline' : ''}` }, identity[definition.key])),
+    iconButton('copy', `Copier : ${definition.label}`, () => copyField(identity, definition))));
+
+  return h('article', { class: `identity-card${identity.isDefault ? ' default' : ''}` },
+    h('header', { class: 'identity-head' },
+      avatar,
+      h('div', { class: 'row-main' },
+        h('div', { class: 'row-title' }, identity.name),
+        identity.isDefault ? h('span', { class: 'chip accent' }, 'Par défaut') : h('div', { class: 'row-sub' }, 'Profil')),
+      iconButton('star', identity.isDefault ? 'Profil par défaut' : 'Définir par défaut',
+        () => attempt(() => save(identity.id, { ...identity, isDefault: !identity.isDefault })),
+        { className: identity.isDefault ? 'favorite' : '', filled: identity.isDefault }),
       iconButton('edit', 'Modifier', () => editIdentity(identity)),
       iconButton('trash', 'Supprimer', () => removeIdentity(identity))),
-    iconButton('star', identity.isDefault ? 'Identité par défaut' : 'Définir par défaut',
-      () => attempt(() => save(identity.id, { ...identity, isDefault: !identity.isDefault })),
-      { className: identity.isDefault ? 'favorite' : '', filled: identity.isDefault }));
+    h('div', { class: 'identity-lines' }, lines));
 }
 
 export function renderIdentities(content) {
-  const identities = [...state.identities].sort((a, b) =>
-    KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) || a.value.localeCompare(b.value, 'fr'));
-  content.append(pageHead('Identités', `${identities.length} enregistrée${identities.length > 1 ? 's' : ''}`));
-
+  const identities = [...state.identities].sort(byName);
+  content.append(pageHead('Identités', `${identities.length} profil${identities.length > 1 ? 's' : ''}`));
   if (!identities.length) {
-    content.append(emptyState('users', 'Enregistrez vos identités',
-      "Vos adresses e-mail, pseudos et numéros sont proposés automatiquement quand vous créez un identifiant. L'identité par défaut est préremplie.",
-      h('button', { class: 'btn primary', type: 'button', onclick: () => editIdentity() }, icon('plus'), 'Nouvelle identité')));
+    content.append(emptyState('users', 'Créez votre premier profil',
+      "Regroupez votre nom, vos e-mails, pseudo, téléphone et adresse dans un profil (Personnel, Travail…). Il remplit vos nouveaux identifiants en un clic.",
+      h('button', { class: 'btn primary', type: 'button', onclick: () => editIdentity() }, icon('plus'), 'Nouveau profil')));
     return;
   }
-
-  const list = h('div', { class: 'list' });
-  let currentKind = null;
-  for (const identity of identities) {
-    if (identity.kind !== currentKind) {
-      currentKind = identity.kind;
-      list.append(h('div', { class: 'list-group' }, IDENTITY_KINDS[currentKind].label.toLocaleUpperCase('fr')));
-    }
-    list.append(row(identity));
-  }
-  content.append(list);
+  content.append(h('div', { class: 'identity-grid' }, identities.map(card),
+    h('button', { class: 'identity-add', type: 'button', onclick: () => editIdentity() }, icon('plus', 22), 'Nouveau profil')));
 }

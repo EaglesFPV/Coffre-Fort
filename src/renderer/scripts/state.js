@@ -10,13 +10,13 @@ export const LOCK_MESSAGES = Object.freeze({
   minimize: 'Coffre verrouillé à la réduction de la fenêtre.',
 });
 
-export const IDENTITY_KINDS = Object.freeze({
-  email: { label: 'E-mail', icon: 'mail', placeholder: 'prenom.nom@exemple.fr' },
-  username: { label: 'Pseudo', icon: 'at', placeholder: 'mon_pseudo' },
-  phone: { label: 'Téléphone', icon: 'phone', placeholder: '06 12 34 56 78' },
-  name: { label: 'Nom complet', icon: 'idCard', placeholder: 'Prénom Nom' },
-  other: { label: 'Autre', icon: 'hash', placeholder: 'Valeur' },
-});
+export const IDENTITY_FIELDS = Object.freeze([
+  { key: 'fullName', label: 'Nom complet', icon: 'idCard', placeholder: 'Prénom Nom' },
+  { key: 'email', label: 'E-mail', icon: 'mail', placeholder: 'prenom.nom@exemple.fr' },
+  { key: 'username', label: 'Pseudo', icon: 'at', placeholder: 'mon_pseudo' },
+  { key: 'phone', label: 'Téléphone', icon: 'phone', placeholder: '06 12 34 56 78' },
+  { key: 'address', label: 'Adresse postale', icon: 'mapPin', placeholder: '12 rue de la Paix\n75002 Paris', multiline: true },
+]);
 
 export const state = {
   view: 'logins',

@@ -21,9 +21,11 @@ const PROTECTION_LEVELS = Object.freeze({
 const DEFAULT_KDF = PROTECTION_LEVELS.reinforced;
 const KDF_LIMITS = Object.freeze({ t: [1, 50], m: [8 * 1024, 4 * 1024 * 1024], p: [1, 64] });
 
-const TEXT_FIELDS = Object.freeze(['title', 'username', 'password', 'url', 'notes', 'category']);
+const TEXT_FIELDS = Object.freeze(['title', 'username', 'email', 'phone', 'password', 'url', 'notes', 'category']);
 const TYPES = Object.freeze(['login', 'note']);
-const IDENTITY_KINDS = Object.freeze(['email', 'username', 'phone', 'name', 'other']);
+const IDENTITY_FIELDS = Object.freeze(['fullName', 'email', 'username', 'phone', 'address']);
+const LEGACY_IDENTITY_FIELDS = Object.freeze({ email: 'email', username: 'username', phone: 'phone', name: 'fullName', other: 'username' });
+const LEGACY_IDENTITY_NAMES = Object.freeze({ email: 'E-mail', username: 'Pseudo', phone: 'Téléphone', name: 'Nom', other: 'Identité' });
 
 const SETTING_RULES = Object.freeze({
   autoLockMinutes: { default: 5, choices: [1, 5, 15, 30, 60] },
@@ -174,7 +176,7 @@ function normalizeData(data) {
     throw new VaultError('Contenu du coffre invalide.');
   }
   return {
-    version: 3,
+    version: 4,
     created: data.created ?? now(),
     modified: data.modified ?? now(),
     settings: normalizeSettings(data.settings),
@@ -193,25 +195,34 @@ function normalizeSettings(raw) {
 }
 
 function isValidIdentity(raw) {
-  return raw && typeof raw === 'object' && typeof raw.id === 'string' && typeof raw.value === 'string';
+  return raw && typeof raw === 'object' && typeof raw.id === 'string';
 }
 
-function normalizeIdentity(raw) {
+function fromLegacyIdentity(raw) {
+  const field = LEGACY_IDENTITY_FIELDS[raw.kind] ?? 'username';
   return {
     id: raw.id,
-    kind: IDENTITY_KINDS.includes(raw.kind) ? raw.kind : 'other',
-    label: typeof raw.label === 'string' ? raw.label : '',
-    value: raw.value,
-    isDefault: raw.isDefault === true,
+    name: raw.label || LEGACY_IDENTITY_NAMES[raw.kind] || 'Identité',
+    [field]: raw.value,
+    isDefault: raw.isDefault,
   };
 }
 
+function normalizeIdentity(raw) {
+  const source = typeof raw.value === 'string' && raw.kind ? fromLegacyIdentity(raw) : raw;
+  const identity = { id: source.id, name: typeof source.name === 'string' && source.name ? source.name : 'Identité' };
+  for (const field of IDENTITY_FIELDS) identity[field] = typeof source[field] === 'string' ? source[field] : '';
+  identity.isDefault = source.isDefault === true;
+  return identity;
+}
+
 function sanitizeIdentity(fields) {
-  const kind = IDENTITY_KINDS.includes(fields.kind) ? fields.kind : null;
-  if (!kind) throw new VaultError("Type d'identité inconnu.");
-  const value = String(fields.value ?? '').trim();
-  if (!value) throw new VaultError('Renseignez une valeur pour cette identité.');
-  return { kind, label: String(fields.label ?? '').trim(), value, isDefault: fields.isDefault === true };
+  const identity = { name: String(fields.name ?? '').trim() };
+  for (const field of IDENTITY_FIELDS) identity[field] = String(fields[field] ?? '').trim();
+  if (!identity.name) throw new VaultError('Donnez un nom à ce profil (par exemple « Personnel » ou « Travail »).');
+  if (IDENTITY_FIELDS.every((field) => !identity[field])) throw new VaultError('Renseignez au moins une information.');
+  identity.isDefault = fields.isDefault === true;
+  return identity;
 }
 
 function sanitizeFields(fields) {
@@ -438,4 +449,14 @@ class Vault {
   }
 }
 
-module.exports = { Vault, VaultError, WrongPasswordError, DEFAULT_KDF, PAD_BLOCK, PROTECTION_LEVELS, IDENTITY_KINDS, deriveKey };
+module.exports = {
+  Vault,
+  VaultError,
+  WrongPasswordError,
+  DEFAULT_KDF,
+  PAD_BLOCK,
+  PROTECTION_LEVELS,
+  IDENTITY_FIELDS,
+  deriveKey,
+  normalizeIdentity,
+};

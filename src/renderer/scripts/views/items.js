@@ -9,7 +9,13 @@ import { withMasterPassword } from '../ui/master-password.js';
 import { newItem, openItem, renderPanel } from './panel.js';
 import { reload } from './shell.js';
 
-const COPY_LABELS = Object.freeze({ username: 'Identifiant copié', password: 'Mot de passe copié', notes: 'Contenu copié' });
+const COPY_LABELS = Object.freeze({
+  username: 'Identifiant copié',
+  email: 'E-mail copié',
+  phone: 'Téléphone copié',
+  password: 'Mot de passe copié',
+  notes: 'Contenu copié',
+});
 
 export async function copyField(item, field) {
   const result = await attempt(() => withMasterPassword(() => api.items.copy(item.id, field)));
@@ -31,7 +37,7 @@ function visibleItems() {
   return state.items
     .filter((item) => item.type === type)
     .filter((item) => filter.kind === 'all' || (filter.kind === 'favorites' ? item.favorite : item.category === filter.value))
-    .filter((item) => !query || [item.title, item.username, item.url, item.category].some((value) => normalizeQuery(value).includes(query)))
+    .filter((item) => !query || [item.title, item.username, item.email, item.phone, item.url, item.category].some((value) => normalizeQuery(value).includes(query)))
     .sort(byTitle);
 }
 
