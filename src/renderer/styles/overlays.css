@@ -1,0 +1,16 @@
+.toast {
+  position: fixed; left: 50%; bottom: 26px; z-index: 60; transform: translate(-50%, 16px);
+  display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-radius: 12px;
+  background: #0b2d35; color: #fff; font-weight: 500; box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
+  opacity: 0; pointer-events: none; transition: opacity 0.18s, transform 0.18s;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.toast svg { color: var(--mint); }
+.toast.error svg { color: #ff8a7a; }
+
+.backdrop { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 24px; background: rgba(5, 26, 31, 0.5); animation: fade 0.14s; }
+.modal { width: 460px; max-width: 100%; padding: 26px; border-radius: 18px; background: var(--surface); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35); animation: rise 0.18s ease-out; }
+.modal h2 { margin: 0 0 8px; font-size: 20px; }
+.modal > p { margin: 0 0 18px; color: var(--muted); }
+.modal .stack { display: flex; flex-direction: column; gap: 14px; }
+.modal .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 22px; }

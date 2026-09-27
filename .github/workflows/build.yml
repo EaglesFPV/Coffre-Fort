@@ -1,0 +1,52 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Tests et installateur de développement
+    runs-on: windows-latest
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v7
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Tests
+        run: npm test
+
+      - name: Numéroter la version de développement
+        shell: pwsh
+        run: |
+          $base = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          npm version "$base-dev.${{ github.run_number }}" --no-git-tag-version --allow-same-version
+
+      - name: Compiler l'installateur
+        run: npx electron-builder --win --publish never
+
+      - name: Joindre l'installateur
+        uses: actions/upload-artifact@v7
+        with:
+          name: Coffre-Fort-Setup-dev
+          path: dist/Coffre-Fort-Setup-*.exe
+          retention-days: 30
+          if-no-files-found: error
+          compression-level: 0

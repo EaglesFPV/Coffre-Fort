@@ -1,0 +1,22 @@
+.auth {
+  height: 100%; display: grid; place-items: center; padding: 24px; overflow-y: auto;
+  background:
+    radial-gradient(900px 500px at 15% 0%, rgba(79, 209, 181, 0.18), transparent 60%),
+    radial-gradient(700px 500px at 100% 100%, rgba(37, 99, 201, 0.14), transparent 60%),
+    linear-gradient(160deg, #0b2d35, #051a1f);
+}
+
+.auth-card {
+  width: 440px; max-width: 100%; padding: 38px 38px 32px; border-radius: 22px;
+  background: var(--surface); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+  animation: rise 0.25s ease-out;
+}
+.auth-card h1 { font-size: 25px; margin: 18px 0 6px; letter-spacing: -0.01em; }
+.auth-card > p { color: var(--muted); margin: 0 0 22px; }
+.auth-card .stack { display: flex; flex-direction: column; gap: 14px; }
+.auth-card .btn.block { margin-top: 10px; }
+
+.auth-footer {
+  display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 18px;
+  color: rgba(255, 255, 255, 0.55); font-size: 12px; text-align: center;
+}

@@ -1,0 +1,122 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version à publier (ex. 1.1.0)'
+        required: true
+        type: string
+      notes:
+        description: 'Nouveautés (facultatif, une ligne)'
+        required: false
+        type: string
+      draft:
+        description: 'Créer en brouillon (à relire et publier depuis Releases)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Publier Coffre-Fort v${{ inputs.version }}
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ inputs.version }}
+      NOTES: ${{ inputs.notes }}
+      DRAFT: ${{ inputs.draft }}
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Vérifier le numéro de version
+        shell: pwsh
+        run: |
+          if ($env:VERSION -notmatch '^\d+\.\d+\.\d+$') {
+            throw "« $env:VERSION » n'est pas un numéro de version valide (format attendu : 1.2.3)."
+          }
+          $latest = git tag --list 'v*' --sort=-v:refname | Select-Object -First 1
+          if ($latest -and [version]$env:VERSION -le [version]$latest.TrimStart('v')) {
+            throw "La version $env:VERSION doit être supérieure à la dernière publiée ($latest)."
+          }
+          "Dernière version : $(if ($latest) { $latest } else { 'aucune' }) → nouvelle version : v$env:VERSION"
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Appliquer la version
+        run: npm version ${{ inputs.version }} --no-git-tag-version --allow-same-version
+
+      - name: Tests
+        run: npm test
+
+      - name: Compiler l'installateur
+        run: npx electron-builder --win --publish never
+
+      - name: Calculer les empreintes SHA-256
+        shell: pwsh
+        run: |
+          Get-ChildItem dist\*.exe | ForEach-Object {
+            "$((Get-FileHash $_ -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
+          } | Set-Content dist\SHA256SUMS.txt -Encoding ascii
+          Get-Content dist\SHA256SUMS.txt
+
+      - name: Enregistrer la version et créer le tag
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git diff --cached --quiet
+          if ($LASTEXITCODE -ne 0) { git commit -m "Version $env:VERSION" }
+          git tag -a "v$env:VERSION" -m "Coffre-Fort $env:VERSION"
+          git push origin HEAD:main "v$env:VERSION"
+
+      - name: Publier dans Releases
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $intro = if ($env:NOTES) { "$env:NOTES`n`n" } else { '' }
+          $body = @"
+          $intro## Installation
+
+          Téléchargez **Coffre-Fort-Setup-$env:VERSION.exe** ci-dessous et lancez-le. Les versions déjà installées
+          se mettent à jour automatiquement.
+
+          L'installateur n'est pas signé numériquement : Windows SmartScreen peut afficher
+          « Windows a protégé votre ordinateur ». Cliquez sur **Informations complémentaires › Exécuter quand même**.
+
+          Empreinte SHA-256 : voir ``SHA256SUMS.txt``.
+          "@
+          $arguments = @(
+            "v$env:VERSION",
+            "dist\Coffre-Fort-Setup-$env:VERSION.exe",
+            "dist\Coffre-Fort-Setup-$env:VERSION.exe.blockmap",
+            "dist\latest.yml",
+            "dist\SHA256SUMS.txt",
+            "--title", "Coffre-Fort v$env:VERSION",
+            "--notes", $body,
+            "--generate-notes",
+            "--latest"
+          )
+          if ($env:DRAFT -eq 'true') { $arguments += '--draft' }
+          gh release create @arguments

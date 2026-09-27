@@ -1,0 +1,86 @@
+{
+  "name": "coffre-fort",
+  "productName": "Coffre-Fort",
+  "version": "1.0.0",
+  "description": "Gestionnaire de mots de passe local et chiffré pour Windows",
+  "author": "EaglesFPV",
+  "license": "MIT",
+  "homepage": "https://github.com/EaglesFPV/Coffre-Fort",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/EaglesFPV/Coffre-Fort.git"
+  },
+  "main": "src/main/index.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "test": "node --test \"test/*.test.js\"",
+    "dist": "electron-builder --win --publish never",
+    "icon": "electron scripts/make-icon.js"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.9",
+    "hash-wasm": "4.12.0",
+    "koffi": "3.3.1"
+  },
+  "devDependencies": {
+    "electron": "44.4.5",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "fr.coffrefort.app",
+    "productName": "Coffre-Fort",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/@koromix/**"
+    ],
+    "npmRebuild": false,
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "EaglesFPV",
+        "repo": "Coffre-Fort"
+      }
+    ],
+    "electronFuses": {
+      "runAsNode": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true,
+      "enableCookieEncryption": true,
+      "grantFileProtocolExtraPrivileges": false
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "artifactName": "Coffre-Fort-Setup-${version}.exe",
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Coffre-Fort",
+      "runAfterFinish": true,
+      "installerLanguages": ["fr_FR"],
+      "language": "1036"
+    }
+  }
+}
