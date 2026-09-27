@@ -64,7 +64,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "build/icon.png"
@@ -79,7 +81,9 @@
       "createStartMenuShortcut": true,
       "shortcutName": "Coffre-Fort",
       "runAfterFinish": true,
-      "installerLanguages": ["fr_FR"],
+      "installerLanguages": [
+        "fr_FR"
+      ],
       "language": "1036"
     }
   }
