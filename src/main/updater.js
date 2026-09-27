@@ -52,7 +52,7 @@ class Updater extends EventEmitter {
 
   install() {
     if (!this.#engine || this.#state.state !== 'ready') throw new UserError("Aucune mise à jour n'est prête à être installée.");
-    setImmediate(() => this.#engine.quitAndInstall(false, true));
+    setImmediate(() => this.#engine.quitAndInstall(true, true));
   }
 
   #safeCheck() {
