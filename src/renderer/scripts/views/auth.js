@@ -47,7 +47,7 @@ export function showLock(message = '') {
       }
     },
   },
-  logo(),
+  logo(64),
   h('h1', null, 'Bon retour'),
   h('p', null, 'Entrez votre mot de passe maître pour déverrouiller votre coffre.'),
   h('div', { class: 'stack' }, passwordInput(input)),
@@ -103,7 +103,7 @@ export function showSetup() {
       }
     },
   },
-  logo(),
+  logo(64),
   h('h1', null, 'Créez votre coffre'),
   h('p', null, 'Choisissez un mot de passe maître : ce sera le seul à retenir. Le plus sûr : une phrase de 5 ou 6 mots sans rapport entre eux.'),
   h('div', { class: 'stack' },

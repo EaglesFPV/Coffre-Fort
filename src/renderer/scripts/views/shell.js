@@ -136,7 +136,7 @@ export function renderSidebar() {
 
   state.dom.sidebar.replaceChildren();
   append(state.dom.sidebar, [
-    h('div', { class: 'brand' }, logo(true), 'Coffre-Fort'),
+    h('div', { class: 'brand' }, logo(36), 'Coffre-Fort'),
     navItem('logins', 'key', 'Identifiants', h('span', { class: 'count' }, String(logins.length))),
     navItem('notes', 'note', 'Notes sécurisées', h('span', { class: 'count' }, String(notes.length))),
     navItem('health', 'shieldCheck', 'Santé des mots de passe', healthPill),

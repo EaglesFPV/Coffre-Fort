@@ -3,8 +3,26 @@ import { h, iconButton } from '../lib/dom.js';
 import { icon } from '../lib/icons.js';
 import { NOTE_COLOR, colorFor, domainOf, initials } from '../lib/format.js';
 
-export function logo(small = false) {
-  return h('div', { class: `logo${small ? ' small' : ''}` }, icon('shield', small ? 18 : 26));
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const LOGO_PATHS = Object.freeze([
+  ['logo-shield', 'M256 64C204 96 152 110 96 114V250C96 346 164 418 256 452C348 418 416 346 416 250V114C360 110 308 96 256 64Z'],
+  ['logo-lock', 'M230 267A52 52 0 1 1 282 267L298 342H214Z'],
+]);
+
+export function logo(size = 56) {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  const attributes = {
+    class: 'logo', viewBox: '0 0 512 512', width: size, height: size, fill: 'none',
+    'stroke-width': 30, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true',
+  };
+  for (const [key, value] of Object.entries(attributes)) svg.setAttribute(key, value);
+  for (const [className, d] of LOGO_PATHS) {
+    const path = document.createElementNS(SVG_NS, 'path');
+    path.setAttribute('class', className);
+    path.setAttribute('d', d);
+    svg.append(path);
+  }
+  return svg;
 }
 
 export function tile(item, large = false) {

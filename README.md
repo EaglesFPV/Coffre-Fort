@@ -1,6 +1,9 @@
 <div align="center">
 
-<img src="build/icon.png" width="96" alt="Coffre-Fort">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="build/logo-dark.svg">
+  <img src="build/logo.svg" width="112" alt="Coffre-Fort">
+</picture>
 
 # Coffre-Fort
 

@@ -83,11 +83,9 @@ input.switch:checked::after { transform: translateX(18px); }
 .strength[data-score="3"] { --level: var(--good); }
 .strength[data-score="4"] { --level: var(--ok); }
 
-.logo {
-  width: 52px; height: 52px; border-radius: 15px; display: grid; place-items: center;
-  background: linear-gradient(135deg, #4fd1b5, #0e7c6d); color: #05211f;
-}
-.logo.small { width: 34px; height: 34px; border-radius: 10px; }
+.logo { display: block; flex: none; }
+.logo-shield { stroke: var(--logo-shield); }
+.logo-lock { stroke: var(--logo-lock); }
 
 .tile {
   width: 42px; height: 42px; flex: none; border-radius: 11px; display: grid; place-items: center;
