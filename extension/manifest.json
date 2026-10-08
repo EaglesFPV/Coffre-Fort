@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Coffre-Fort",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Remplit vos identifiants depuis l'application Coffre-Fort, uniquement sur le bon site et à votre demande.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAq79gdoGceEUJFaj/H2AoL+tpgKb/GSU6b5HadU6vwhBEginF1CAePbes+s9jrymGPTq1vtqH758Rklmt0E13xIq01vahwi+lK9WtVPYmU6KUZAEa94ZK95bq9Nwc+bUT1FpDFHFHrcyTNSjYOroSnYX1SkF1cSmlZaPCb8yv+tQpcug4W0H8DocD8+VFakcfeOdi4vzCdmLSwMHNgDZ3SLQnlhtB8cduU1LNu31ESP8OOY55QaLg6z/296QRPD0V48xrGYy2aX/eN5ccyYpNYGl4usdVvZBsJz2nNrPfheD8Vj7w8CbUtBDJLPjbmsmn/2GJpRa5oI9FX7J6oBH7KQIDAQAB",
   "minimum_chrome_version": "110",
@@ -19,10 +19,17 @@
       "32": "icons/icon-32.png"
     }
   },
-  "permissions": ["nativeMessaging", "activeTab", "scripting", "storage"],
+  "permissions": [
+    "nativeMessaging",
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
   "commands": {
     "_execute_action": {
-      "suggested_key": { "default": "Alt+Shift+L" },
+      "suggested_key": {
+        "default": "Alt+Shift+L"
+      },
       "description": "Ouvrir Coffre-Fort pour remplir un identifiant"
     }
   }
