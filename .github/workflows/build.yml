@@ -30,6 +30,9 @@ jobs:
       - name: Installer les dépendances
         run: npm ci
 
+      - name: Compiler le relais du navigateur
+        run: npm run build:host
+
       - name: Tests
         run: npm test
 
@@ -40,7 +43,7 @@ jobs:
           npm version "$base-dev.${{ github.run_number }}" --no-git-tag-version --allow-same-version
 
       - name: Compiler l'installateur
-        run: npx electron-builder --win --publish never
+        run: npm run dist
 
       - name: Joindre l'installateur
         uses: actions/upload-artifact@v7

@@ -38,6 +38,7 @@ sécurité repose sur des algorithmes standards et éprouvés : **Argon2id** et 
 | **Identifiants** | Nom, identifiant, e-mail, téléphone, mot de passe, site, catégorie et notes. Copie en un clic, ouverture du site. |
 | **Notes sécurisées** | Codes Wi-Fi, codes de secours, licences : tout ce qui doit rester secret. |
 | **Profils d'identité** | Nom complet, e-mail, pseudo, téléphone et adresse regroupés par profil (Personnel, Travail…). Un profil remplit d'un coup l'identifiant, l'e-mail et le téléphone d'un compte. |
+| **Extension de navigateur** | Remplit vos identifiants dans Edge, Chrome et Brave : uniquement sur le site enregistré, à votre demande, quand le coffre est déverrouillé. |
 | **Santé des mots de passe** | Score sur 100 et liste des mots de passe réutilisés, faibles ou anciens, analysés localement. |
 | **Générateur** | De 8 à 64 caractères, choix des catégories, caractères ambigus évitables, entropie affichée. |
 | **Organisation** | Catégories, favoris épinglés, recherche instantanée, regroupement alphabétique. |
@@ -82,6 +83,28 @@ téléchargée en arrière-plan puis installée en silence à la fermeture de l'
 avec **Redémarrer maintenant**, sans passer par l'assistant d'installation. Le fichier téléchargé est
 contrôlé par son empreinte SHA-512 avant installation.
 La vérification automatique peut être désactivée dans **Paramètres › À propos**.
+
+## Extension de navigateur
+
+L'extension remplit l'identifiant et le mot de passe du site affiché, dans Edge, Chrome et Brave.
+
+1. Dans Coffre-Fort, ouvrez **Paramètres › Navigateur** et activez **Extension de navigateur**.
+2. Dans le navigateur, ouvrez `edge://extensions` (ou `chrome://extensions`), activez le **Mode développeur**,
+   cliquez sur **Charger l'élément décompressé** et choisissez le dossier indiqué dans les paramètres.
+3. Cliquez sur l'icône Coffre-Fort du navigateur, puis sur **Associer ce navigateur**. Vérifiez que le code
+   à six chiffres est le même dans l'extension et dans l'application, puis autorisez.
+
+Ensuite, sur une page de connexion, cliquez sur l'icône de l'extension (ou `Alt` + `Maj` + `L`) et choisissez
+le compte à remplir.
+
+| Garantie | Détail |
+|---|---|
+| Rien sans votre geste | L'extension ne lit une page que lorsque vous cliquez dessus ; elle ne remplit jamais toute seule. |
+| Le bon site uniquement | L'application, et non l'extension, vérifie que l'adresse de la page correspond au compte. Un sous-domaine du site est accepté, un site qui l'imite ne l'est pas. Remplir ailleurs demande une confirmation explicite. |
+| Pages sécurisées | Aucun remplissage sur une page `http`, sauf si le compte est lui-même enregistré en `http`. |
+| Association | Chaque navigateur doit être autorisé une fois dans l'application ; l'association se révoque dans les paramètres. |
+| Aucun réseau | L'extension dialogue avec l'application par un canal local (*native messaging*), sans serveur ni port ouvert. |
+| Coffre verrouillé | Rien n'est accessible tant que le coffre est verrouillé, et l'option « Exiger le mot de passe maître » s'applique aussi au navigateur. |
 
 ## Sécurité
 
@@ -134,8 +157,9 @@ npm run dev
 |---|---|
 | `npm start` | Lance l'application |
 | `npm run dev` | Lance avec les outils de développement ; `COFFRE_VAULT` permet d'utiliser un coffre de test |
-| `npm test` | Exécute les tests (chiffrement, altérations, générateur, santé) |
-| `npm run dist` | Compile l'installateur dans `dist/` |
+| `npm test` | Exécute les tests (chiffrement, altérations, générateur, santé, correspondance des sites, liaison navigateur) |
+| `npm run build:host` | Compile le relais du navigateur (`native-host/bin/`), avec le compilateur C# fourni par Windows |
+| `npm run dist` | Compile le relais, synchronise la version de l'extension et produit l'installateur dans `dist/` |
 | `npm run icon` | Régénère `build/icon.png` |
 
 ### Architecture
@@ -145,7 +169,9 @@ src/
 ├── core/                  Logique métier, sans dépendance à Electron
 │   ├── vault.js           Format .cfv, Argon2id + AES-256-GCM, écriture atomique
 │   ├── passwords.js       Génération et évaluation de la solidité
-│   └── health.js          Analyse de la santé des mots de passe
+│   ├── health.js          Analyse de la santé des mots de passe
+│   ├── url-match.js       Correspondance stricte entre un compte et le site affiché
+│   └── frames.js          Messages échangés avec le navigateur
 ├── main/                  Processus principal
 │   ├── index.js           Cycle de vie de l'application
 │   ├── config.js          Chemins et constantes
@@ -156,12 +182,16 @@ src/
 │   ├── secret-clipboard.js
 │   ├── system.js          Zone de notification, démarrage, raccourci global
 │   ├── updater.js         Mises à jour automatiques
+│   ├── browser-bridge.js  Requêtes du navigateur : association, liste, remplissage
+│   ├── browser-integration.js · browser-registration.js
 │   ├── preferences.js     Préférences système (non secrètes)
 │   └── platform/windows-clipboard.js
 ├── preload/index.js       Pont minimal entre l'interface et le processus principal
 └── renderer/              Interface (HTML, CSS et modules JavaScript, sans framework)
     ├── styles/
     └── scripts/  lib/ · ui/ · views/
+extension/                 Extension de navigateur (Manifest V3)
+native-host/Host.cs        Relais entre le navigateur et l'application (native messaging)
 ```
 
 ### Publier une version

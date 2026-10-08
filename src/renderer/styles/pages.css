@@ -39,6 +39,8 @@ input[type="range"] { flex: 1; height: 20px; accent-color: var(--accent); cursor
 .setting .text span { font-size: 13px; color: var(--muted); }
 .setting .text span.path { word-break: break-all; }
 .setting select.input { width: 170px; }
+.setting .steps { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 6px; color: var(--muted); font-size: 13px; }
+.setting code { padding: 1px 6px; border-radius: 6px; background: var(--surface-2); color: var(--text); font-family: var(--mono); font-size: 12px; word-break: break-all; }
 .checks { display: grid; gap: 10px; margin: 0; padding: 4px 0 16px; list-style: none; }
 .checks li { display: flex; align-items: flex-start; gap: 10px; }
 .checks svg { flex: none; margin-top: 2px; color: var(--ok); }

@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, Menu } = require('electron');
+const { app, dialog, Menu } = require('electron');
 const security = require('./security');
 const config = require('./config');
 const { createMainWindow } = require('./window');
@@ -9,6 +9,7 @@ const { SecretClipboard } = require('./secret-clipboard');
 const { Preferences } = require('./preferences');
 const { SystemIntegration } = require('./system');
 const { Updater } = require('./updater');
+const { BrowserIntegration } = require('./browser-integration');
 const { registerIpc } = require('./ipc');
 
 security.beforeReady();
@@ -37,6 +38,32 @@ if (!app.requestSingleInstanceLock()) {
   const system = new SystemIntegration({ getWindow: () => mainWindow, showWindow, vaultSession });
   const updater = new Updater();
 
+  const confirmPairing = async ({ code, browser }) => {
+    if (!mainWindow) return false;
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: 'question',
+      title: 'Coffre-Fort',
+      message: `Associer l'extension ${browser} à Coffre-Fort ?`,
+      detail: `Code affiché dans le navigateur : ${code}\n\nN'autorisez que si vous venez de demander l'association et que ce code est identique à celui de l'extension. Elle pourra alors remplir vos identifiants sur les sites correspondants.`,
+      buttons: ['Refuser', 'Autoriser'],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true,
+    });
+    return response === 1;
+  };
+
+  const browserIntegration = new BrowserIntegration({
+    vaultSession,
+    version: app.getVersion(),
+    showWindow,
+    confirmPairing,
+    requestMasterPassword: () => {
+      showWindow();
+      send('browser:master-required');
+    },
+  });
+
   vaultSession.on('locked', (reason) => {
     secretClipboard.clear();
     send('vault:locked', reason);
@@ -55,7 +82,10 @@ if (!app.requestSingleInstanceLock()) {
     } catch {
       system.apply({ ...preferences.values, globalShortcut: 'none', launchAtStartup: false });
     }
-    registerIpc({ vaultSession, secretClipboard, preferences, updater, system, getWindow: () => mainWindow });
+    browserIntegration.setEnabled(preferences.values.browserIntegration).catch(() => {});
+    registerIpc({
+      vaultSession, secretClipboard, preferences, updater, system, browserIntegration, getWindow: () => mainWindow,
+    });
 
     const hidden = config.startHidden && system.keepsRunningInTray;
     mainWindow = createMainWindow({ show: !hidden });
@@ -71,6 +101,7 @@ if (!app.requestSingleInstanceLock()) {
 
   app.on('will-quit', () => {
     secretClipboard.clear();
+    browserIntegration.dispose();
     system.dispose();
     vaultSession.dispose();
   });

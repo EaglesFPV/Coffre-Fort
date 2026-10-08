@@ -1,0 +1,101 @@
+:root {
+  --petrol: #0b2d35;
+  --mint: #4fd1b5;
+  --bg: #f3f6f6;
+  --surface: #ffffff;
+  --surface-2: #eff3f3;
+  --border: #dfe6e6;
+  --text: #0f2a30;
+  --muted: #5b7075;
+  --primary: #0b2d35;
+  --primary-text: #ffffff;
+  --accent: #0e7c6d;
+  --danger: #c0392b;
+  --warn: #b56500;
+  --warn-bg: #fff3df;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1a1e;
+    --surface: #132328;
+    --surface-2: #192d33;
+    --border: #23393f;
+    --text: #e4eeee;
+    --muted: #8ea5aa;
+    --primary: #4fd1b5;
+    --primary-text: #05211f;
+    --accent: #4fd1b5;
+    --danger: #ff7a6b;
+    --warn: #ffb44d;
+    --warn-bg: #36280f;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  width: 360px;
+  margin: 0;
+  font: 14px/1.45 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+.header { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: var(--petrol); color: #fff; }
+.brand { font-weight: 700; font-size: 15px; }
+.site {
+  margin-left: auto; max-width: 170px; padding: 2px 10px; border-radius: 999px; font-size: 12px;
+  background: rgba(255, 255, 255, 0.12); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.site:empty { display: none; }
+
+.view { display: flex; flex-direction: column; gap: 10px; padding: 14px; min-height: 120px; }
+
+.state { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 6px 6px; text-align: center; }
+.state h1 { margin: 0; font-size: 16px; }
+.state p { margin: 0; color: var(--muted); font-size: 13px; }
+.state ol { margin: 4px 0 0; padding-left: 20px; color: var(--muted); font-size: 13px; text-align: left; }
+
+.code {
+  margin: 4px 0; padding: 8px 18px; border-radius: 10px; font: 700 24px/1.2 "Cascadia Mono", Consolas, monospace;
+  letter-spacing: 0.08em; background: var(--surface); border: 1px solid var(--border);
+}
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 16px;
+  border-radius: 9px; border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  font: inherit; font-weight: 600; cursor: pointer;
+}
+.btn:hover { background: var(--surface-2); }
+.btn.primary { background: var(--primary); color: var(--primary-text); border-color: transparent; }
+.btn.primary:hover { filter: brightness(1.12); }
+.btn:disabled { opacity: 0.6; cursor: default; }
+.actions { display: flex; gap: 8px; justify-content: center; margin-top: 6px; }
+
+.section { margin: 2px 2px 0; font-size: 11px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
+
+.list { display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.item {
+  display: flex; align-items: center; gap: 12px; width: 100%; padding: 9px 12px; border: 0; border-bottom: 1px solid var(--border);
+  background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.item:last-child { border-bottom: 0; }
+.item:hover, .item:focus-visible { background: var(--surface-2); outline: none; }
+.tile { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 9px; color: #fff; font-weight: 700; font-size: 13px; }
+.item-main { flex: 1; min-width: 0; }
+.item-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item-sub { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item-action { font-size: 12px; font-weight: 600; color: var(--accent); }
+
+.search {
+  width: 100%; height: 36px; padding: 0 12px; border: 1px solid var(--border); border-radius: 9px;
+  background: var(--surface); color: var(--text); font: inherit;
+}
+.search:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.notice { padding: 9px 12px; border-radius: 10px; font-size: 13px; background: var(--warn-bg); color: var(--warn); }
+.notice.error { color: var(--danger); }
+.empty { padding: 6px 2px; color: var(--muted); font-size: 13px; }

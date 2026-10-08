@@ -1,15 +1,30 @@
 'use strict';
 
+const os = require('node:os');
 const path = require('node:path');
 const { app } = require('electron');
 
 const isDev = !app.isPackaged && process.argv.includes('--dev');
+const projectRoot = path.join(__dirname, '..', '..');
 
 const vaultPath = isDev && process.env.COFFRE_VAULT
   ? path.resolve(process.env.COFFRE_VAULT)
   : path.join(process.env.LOCALAPPDATA || app.getPath('userData'), 'CoffreFort', 'coffre.cfv');
 
+const browser = Object.freeze({
+  extensionId: 'ppbcnkclnpbghmaeglncpfphkcldhjdp',
+  hostName: 'fr.coffrefort.app',
+  hostPath: app.isPackaged
+    ? path.join(process.resourcesPath, 'native-host', 'coffre-fort-host.exe')
+    : path.join(projectRoot, 'native-host', 'bin', 'coffre-fort-host.exe'),
+  extensionDir: app.isPackaged ? path.join(process.resourcesPath, 'extension') : path.join(projectRoot, 'extension'),
+  manifestPath: path.join(app.getPath('userData'), 'native-messaging', 'fr.coffrefort.app.json'),
+  pipePath: `\\\\.\\pipe\\coffre-fort-browser-${Buffer.from(os.userInfo().username, 'utf8').toString('hex')}`,
+  manageRegistration: !(isDev && process.env.COFFRE_SKIP_BROWSER_REGISTRATION),
+});
+
 module.exports = Object.freeze({
+  browser,
   isDev,
   vaultPath,
   vaultDir: path.dirname(vaultPath),

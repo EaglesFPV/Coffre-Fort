@@ -26,6 +26,8 @@ const TYPES = Object.freeze(['login', 'note']);
 const IDENTITY_FIELDS = Object.freeze(['fullName', 'email', 'username', 'phone', 'address']);
 const LEGACY_IDENTITY_FIELDS = Object.freeze({ email: 'email', username: 'username', phone: 'phone', name: 'fullName', other: 'username' });
 const LEGACY_IDENTITY_NAMES = Object.freeze({ email: 'E-mail', username: 'Pseudo', phone: 'Téléphone', name: 'Nom', other: 'Identité' });
+const BROWSER_KEY = /^[0-9a-f]{64}$/;
+const BROWSER_KEY_HASH = /^[0-9a-f]{64}$/;
 
 const SETTING_RULES = Object.freeze({
   autoLockMinutes: { default: 5, choices: [1, 5, 15, 30, 60] },
@@ -176,13 +178,32 @@ function normalizeData(data) {
     throw new VaultError('Contenu du coffre invalide.');
   }
   return {
-    version: 4,
+    version: 5,
     created: data.created ?? now(),
     modified: data.modified ?? now(),
     settings: normalizeSettings(data.settings),
     entries: data.entries.map(normalizeEntry),
     identities: Array.isArray(data.identities) ? data.identities.filter(isValidIdentity).map(normalizeIdentity) : [],
+    browsers: Array.isArray(data.browsers) ? data.browsers.filter(isValidBrowser).map(normalizeBrowser) : [],
   };
+}
+
+function isValidBrowser(raw) {
+  return raw && typeof raw === 'object' && typeof raw.id === 'string' && BROWSER_KEY_HASH.test(raw.keyHash);
+}
+
+function normalizeBrowser(raw) {
+  return {
+    id: raw.id,
+    name: typeof raw.name === 'string' && raw.name ? raw.name : 'Navigateur',
+    keyHash: raw.keyHash,
+    created: Number.isInteger(raw.created) ? raw.created : now(),
+  };
+}
+
+function hashBrowserKey(key) {
+  if (typeof key !== 'string' || !BROWSER_KEY.test(key)) return null;
+  return crypto.createHash('sha256').update(key, 'utf8').digest();
 }
 
 function normalizeSettings(raw) {
@@ -315,6 +336,11 @@ class Vault {
     return structuredClone(this.#data.identities);
   }
 
+  get browsers() {
+    this.#assertUnlocked();
+    return this.#data.browsers.map(({ id, name, created }) => ({ id, name, created }));
+  }
+
   get protectionLevel() {
     const match = Object.entries(PROTECTION_LEVELS)
       .find(([, kdf]) => kdf.t === this.#kdf.t && kdf.m === this.#kdf.m && kdf.p === this.#kdf.p);
@@ -420,6 +446,34 @@ class Vault {
       const remaining = data.identities.filter((identity) => identity.id !== id);
       if (remaining.length === data.identities.length) throw new VaultError('Identité introuvable.');
       data.identities = remaining;
+    });
+  }
+
+  isBrowserPaired(key) {
+    this.#assertUnlocked();
+    const hash = hashBrowserKey(key);
+    if (!hash) return false;
+    return this.#data.browsers.some((browser) => crypto.timingSafeEqual(Buffer.from(browser.keyHash, 'hex'), hash));
+  }
+
+  pairBrowser(name, key) {
+    const hash = hashBrowserKey(key);
+    if (!hash) throw new VaultError("Clé d'association invalide.");
+    if (this.isBrowserPaired(key)) return;
+    const browser = normalizeBrowser({
+      id: crypto.randomUUID(),
+      name: String(name ?? '').trim().slice(0, 40),
+      keyHash: hash.toString('hex'),
+      created: now(),
+    });
+    this.#commit((data) => data.browsers.push(browser));
+  }
+
+  unpairBrowser(id) {
+    this.#commit((data) => {
+      const remaining = data.browsers.filter((browser) => browser.id !== id);
+      if (remaining.length === data.browsers.length) throw new VaultError('Navigateur introuvable.');
+      data.browsers = remaining;
     });
   }
 

@@ -9,6 +9,7 @@ const BUILD = path.join(__dirname, '..', 'build');
 const OUTPUTS = [
   { file: path.join(BUILD, 'icon.png'), size: 512 },
   { file: path.join(__dirname, '..', 'src', 'main', 'assets', 'icon.png'), size: 256 },
+  ...[16, 32, 48, 128].map((size) => ({ file: path.join(__dirname, '..', 'extension', 'icons', `icon-${size}.png`), size })),
 ];
 
 const logo = fs.readFileSync(path.join(BUILD, 'logo-dark.svg'), 'utf8')
@@ -27,19 +28,38 @@ const SVG = `
   ${logo}
 </svg>`;
 
-app.whenReady().then(async () => {
+const CAPTURE_ATTEMPTS = 8;
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function capture(window) {
+  for (let attempt = 1; attempt <= CAPTURE_ATTEMPTS; attempt++) {
+    await wait(400);
+    try {
+      const image = await window.webContents.capturePage();
+      if (!image.isEmpty()) return image;
+    } catch {
+      continue;
+    }
+  }
+  throw new Error("Capture de l'icône impossible.");
+}
+
+async function main() {
   const window = new BrowserWindow({
     width: SIZE, height: SIZE, show: false, frame: false, transparent: true,
     webPreferences: { offscreen: true },
   });
   const html = `<html><body style="margin:0;background:transparent">${SVG}</body></html>`;
   await window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  const capture = await window.webContents.capturePage();
+  const image = await capture(window);
   for (const { file, size } of OUTPUTS) {
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, capture.resize({ width: size, height: size, quality: 'best' }).toPNG());
+    fs.writeFileSync(file, image.resize({ width: size, height: size, quality: 'best' }).toPNG());
     console.log(`${path.relative(process.cwd(), file)} ${size}x${size}`);
   }
-  app.quit();
+}
+
+app.whenReady().then(main).then(() => app.exit(0), (error) => {
+  console.error(error.message);
+  app.exit(1);
 });

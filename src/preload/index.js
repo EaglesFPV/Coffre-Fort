@@ -49,6 +49,11 @@ contextBridge.exposeInMainWorld('coffre', {
     estimate: (password) => invoke('passwords:estimate', password),
     copy: (password) => invoke('passwords:copy', password),
   },
+  browser: {
+    state: () => invoke('browser:state'),
+    unpair: (id) => invoke('browser:unpair', id),
+    openExtensionFolder: () => invoke('browser:open-extension'),
+  },
   app: {
     info: () => invoke('app:info'),
     updatePreferences: (changes) => invoke('app:preferences', changes),
@@ -59,5 +64,6 @@ contextBridge.exposeInMainWorld('coffre', {
     onLocked: subscribe('vault:locked'),
     onClipboardCleared: subscribe('clipboard:cleared'),
     onUpdateStatus: subscribe('update:status'),
+    onMasterPasswordRequested: subscribe('browser:master-required'),
   },
 });

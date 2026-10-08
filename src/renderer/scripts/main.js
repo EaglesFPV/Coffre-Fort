@@ -1,6 +1,7 @@
 import { api } from './api.js';
 import { LOCK_MESSAGES, resetSession, state } from './state.js';
 import { hideToast, toast, toastError } from './ui/feedback.js';
+import { promptMasterPassword } from './ui/master-password.js';
 import { closeModal } from './ui/modal.js';
 import { renderUpdateBanner } from './ui/update-banner.js';
 import { installShortcuts } from './shortcuts.js';
@@ -31,6 +32,14 @@ function subscribeToEvents() {
   api.events.onUpdateStatus((status) => {
     state.update = status;
     renderUpdateBanner();
+  });
+  api.events.onMasterPasswordRequested(async () => {
+    if (!state.dom) return;
+    const confirmed = await promptMasterPassword({
+      title: 'Demande du navigateur',
+      text: "L'extension veut remplir un identifiant. Confirmez avec votre mot de passe maître, puis recommencez dans le navigateur.",
+    });
+    if (confirmed) toast('Confirmé : vous pouvez remplir depuis le navigateur');
   });
 }
 

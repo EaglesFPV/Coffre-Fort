@@ -58,6 +58,29 @@ Format du fichier `.cfv` :
 "CFVAULT\x01" │ longueur de l'en-tête (4 octets, big-endian) │ en-tête JSON │ AES-256-GCM(données) │ tag (16 octets)
 ```
 
+## Extension de navigateur
+
+L'extension est désactivée par défaut. Une fois activée dans **Paramètres › Navigateur** :
+
+- Le navigateur lance un petit relais (`coffre-fort-host.exe`) qui transmet les messages à l'application
+  par un canal nommé local. Aucun port réseau n'est ouvert. Le relais ne contient aucune logique de
+  sécurité : toutes les vérifications sont faites par l'application.
+- Seule l'extension Coffre-Fort (identifiant fixe) est autorisée à lancer le relais.
+- Chaque navigateur doit être **associé** : l'extension génère une clé aléatoire de 256 bits, l'application
+  affiche une demande avec un code à six chiffres à comparer, et ne conserve que l'empreinte SHA-256 de la
+  clé, dans le coffre chiffré. Sans clé associée, aucune donnée n'est renvoyée.
+- L'extension ne reçoit que le titre, l'identifiant et le site des comptes **correspondant à la page
+  affichée**. Un mot de passe n'est transmis qu'au moment où vous choisissez un compte.
+- La correspondance est stricte : même nom d'hôte, ou sous-domaine du site enregistré. Les hébergements
+  partagés (`github.io`, `pages.dev`…) exigent une correspondance exacte. Remplir sur un autre site exige une
+  confirmation explicite, et reste refusé sur une page non sécurisée (`http`).
+- L'extension ne demande que les permissions `activeTab`, `scripting`, `nativeMessaging` et `storage` :
+  elle ne peut lire une page que lorsque vous cliquez sur son icône, et ne remplit jamais automatiquement.
+- Coffre verrouillé : aucune requête n'aboutit. L'option « Exiger le mot de passe maître » s'applique aussi.
+
+Limite : un programme malveillant exécuté sous votre session Windows pourrait lire la clé d'association
+dans le profil du navigateur, comme il pourrait enregistrer vos frappes. Ce cas sort du périmètre.
+
 ## Mises à jour
 
 Les mises à jour sont téléchargées depuis les versions publiées de ce dépôt GitHub, en HTTPS. Le

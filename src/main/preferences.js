@@ -12,9 +12,10 @@ const DEFAULTS = Object.freeze({
   showTray: true,
   closeToTray: false,
   globalShortcut: 'none',
+  browserIntegration: false,
 });
 
-const BOOLEAN_KEYS = Object.freeze(['autoUpdate', 'launchAtStartup', 'showTray', 'closeToTray']);
+const BOOLEAN_KEYS = Object.freeze(['autoUpdate', 'launchAtStartup', 'showTray', 'closeToTray', 'browserIntegration']);
 
 function sanitize(source, fallback) {
   const values = { ...fallback };

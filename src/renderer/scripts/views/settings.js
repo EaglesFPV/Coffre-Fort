@@ -1,6 +1,7 @@
 import { api } from '../api.js';
 import { h } from '../lib/dom.js';
 import { icon } from '../lib/icons.js';
+import { formatDate } from '../lib/format.js';
 import { state } from '../state.js';
 import { bindStrength, pageHead, passwordInput, setBusy, strengthMeter } from '../ui/components.js';
 import { attempt, toast } from '../ui/feedback.js';
@@ -25,9 +26,8 @@ const SHORTCUT_CHOICES = Object.freeze([
 ]);
 
 function setting(title, description, control, descriptionClass) {
-  return h('div', { class: 'setting' },
-    h('div', { class: 'text' }, h('strong', null, title), h('span', { class: descriptionClass }, description)),
-    control);
+  const details = description instanceof HTMLOListElement ? description : h('span', { class: descriptionClass }, description);
+  return h('div', { class: 'setting' }, h('div', { class: 'text' }, h('strong', null, title), details), control);
 }
 
 function select(label, choices, current, onChange) {
@@ -159,6 +159,46 @@ function systemCard() {
         (value) => updatePreferences({ globalShortcut: value }, value === 'none' ? 'Raccourci désactivé' : 'Raccourci enregistré'))));
 }
 
+function browserDetails(info) {
+  const steps = h('ol', { class: 'steps' },
+    h('li', null, 'Dans Edge, ouvrez ', h('code', { class: 'selectable' }, 'edge://extensions'), ' et activez le « Mode développeur » (Chrome et Brave : ', h('code', { class: 'selectable' }, 'chrome://extensions'), ').'),
+    h('li', null, 'Cliquez sur « Charger l’élément décompressé » et choisissez ce dossier : ', h('code', { class: 'selectable' }, info.extensionDir)),
+    h('li', null, 'Cliquez sur l’icône Coffre-Fort du navigateur, puis sur « Associer ce navigateur ».'));
+
+  const browsers = info.browsers.length
+    ? info.browsers.map((browser) => setting(browser.name, `Associé le ${formatDate(browser.created)}`,
+      h('button', {
+        class: 'btn danger',
+        type: 'button',
+        onclick: () => attempt(async () => {
+          await api.browser.unpair(browser.id);
+          toast('Navigateur dissocié');
+          renderContent();
+        }),
+      }, 'Dissocier')))
+    : [h('div', { class: 'setting' }, h('div', { class: 'text' }, h('span', null, 'Aucun navigateur associé pour le moment.')))];
+
+  return [
+    setting('Installer l’extension', steps,
+      h('button', { class: 'btn', type: 'button', onclick: () => attempt(() => api.browser.openExtensionFolder()) }, icon('folder', 16), 'Ouvrir le dossier')),
+    ...browsers,
+  ];
+}
+
+function browserCard() {
+  const preferences = state.appInfo.preferences;
+  const card = h('div', { class: 'card' },
+    h('h3', null, 'Navigateur'),
+    setting('Extension de navigateur',
+      'Remplit vos identifiants dans Edge, Chrome ou Brave : uniquement sur le site enregistré, à votre demande, et quand le coffre est déverrouillé.',
+      toggle('Extension de navigateur', preferences.browserIntegration, (value) => updatePreferences({ browserIntegration: value },
+        value ? 'Liaison avec le navigateur activée' : 'Liaison avec le navigateur désactivée'))));
+  if (preferences.browserIntegration) {
+    api.browser.state().then((info) => card.append(...browserDetails(info))).catch(() => {});
+  }
+  return card;
+}
+
 function backupCard() {
   return h('div', { class: 'card' },
     h('h3', null, 'Sauvegarde'),
@@ -211,5 +251,5 @@ function protectionsCard() {
 }
 
 export function renderSettings(content) {
-  content.append(pageHead('Paramètres'), securityCard(), systemCard(), backupCard(), aboutCard(), protectionsCard());
+  content.append(pageHead('Paramètres'), securityCard(), browserCard(), systemCard(), backupCard(), aboutCard(), protectionsCard());
 }

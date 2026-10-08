@@ -63,7 +63,7 @@ function snapshot(vault) {
   };
 }
 
-function registerIpc({ vaultSession, secretClipboard, preferences, updater, system, getWindow }) {
+function registerIpc({ vaultSession, secretClipboard, preferences, updater, system, browserIntegration, getWindow }) {
   const handle = (channel, handler) => {
     ipcMain.handle(channel, async (event, ...args) => {
       if (!isTrustedSender(event.senderFrame)) return { ok: false, error: 'Appel refusé.' };
@@ -188,12 +188,20 @@ function registerIpc({ vaultSession, secretClipboard, preferences, updater, syst
     preferences: preferences.values,
     update: updater.status,
   }));
-  handle('app:preferences', (changes) => {
+  handle('app:preferences', async (changes) => {
     const next = preferences.preview(object(changes));
+    await browserIntegration.setEnabled(next.browserIntegration);
     system.apply(next);
     updater.setAutomatic(next.autoUpdate);
     return preferences.save(next);
   });
+
+  handle('browser:state', () => ({
+    ...browserIntegration.state,
+    browsers: vaultSession.isUnlocked ? vaultSession.vault.browsers : [],
+  }));
+  handle('browser:unpair', (id) => vaultSession.vault.unpairBrowser(text(id, 100)));
+  handle('browser:open-extension', () => shell.openPath(config.browser.extensionDir).then(() => undefined));
   handle('update:check', () => updater.check());
   handle('update:install', () => updater.install());
 }

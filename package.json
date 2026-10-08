@@ -16,7 +16,9 @@
     "start": "electron .",
     "dev": "electron . --dev",
     "test": "node --test \"test/*.test.js\"",
-    "dist": "electron-builder --win --publish never",
+    "build:host": "node scripts/build-native-host.js",
+    "build:extension": "node scripts/sync-extension-version.js",
+    "dist": "npm run build:host && npm run build:extension && electron-builder --win --publish never",
     "icon": "electron scripts/make-icon.js"
   },
   "dependencies": {
@@ -42,6 +44,19 @@
     "asar": true,
     "asarUnpack": [
       "node_modules/@koromix/**"
+    ],
+    "extraResources": [
+      {
+        "from": "extension",
+        "to": "extension"
+      },
+      {
+        "from": "native-host/bin",
+        "to": "native-host",
+        "filter": [
+          "*.exe"
+        ]
+      }
     ],
     "npmRebuild": false,
     "publish": [
